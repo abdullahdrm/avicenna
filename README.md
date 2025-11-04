@@ -1,5 +1,9 @@
 # AVICENNA
-
+Is a
+comprehensive digital health platform, utilized to bring together patients and
+doctors for Machine Learning assisted dermatological care. The platform integrates
+computer vision and image processing to deliver secure, efficient, and intelligent
+dermatology services.
 ## Contributing: how to add code to this repo
 
 A short checklist and commands for adding code from a new machine.
