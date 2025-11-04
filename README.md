@@ -1,8 +1,10 @@
-# Contributing: how to add code to this repo
+# AVICENNA
+
+## Contributing: how to add code to this repo
 
 A short checklist and commands for adding code from a new machine.
 
-## 1) First-time SSH setup (GitHub/GitLab)
+### 1) First-time SSH setup (GitHub/GitLab)
 1. Generate a key (use ed25519 if available):
 ```bash
 ssh-keygen -t ed25519 -C "your.email@example.com"
@@ -24,7 +26,7 @@ cat ~/.ssh/id_ed25519.pub
 ssh -T git@github.com
 ```
 
-## 2) Basic git config (run once per machine)
+### 2) Basic git config (run once per machine)
 ```bash
 git config --global user.name "Your Name"
 git config --global user.email "your.email@example.com"
@@ -77,7 +79,7 @@ and try to push again.
 - **Do NOT merge your own PR. Assign someone else to review and merge.**
 - Use draft PRs for work-in-progress.
 
-## 5) Local check commands (use often)
+### 5) Local check commands (use often)
 - See changed files and working state:
 ```bash
 git status
@@ -106,17 +108,17 @@ git diff --staged
 git log --oneline --graph --decorate
 ```
 
-## 6) Commit message guidelines
+### 6) Commit message guidelines
 - Keep the first line short (<=72 chars), imperative tense:
     - "Add user profile endpoint"
     - "Fix typo in README"
 - Add a body if more context is needed.
 
-## 7) Tests, linting, CI
+### 7) Tests, linting, CI
 - Run project tests and linters locally before pushing.
 - Fix warnings and failing tests; CI must pass before merge. (In our case for now only githubs merge clashes are checked.)
 
-## 8) Safety and etiquette
+### 8) Safety and etiquette
 - Avoid force-pushing to shared branches (main). If you must force-push, coordinate with the team.
 - Keep commits focused and small where possible.
 - Clean up stale branches after merge.
