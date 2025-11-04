@@ -1,0 +1,58 @@
+body{
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+
+
+h1{
+    text-align: center;
+    font-size: 40px;
+}
+
+p{
+    /* font-size: 10px; */
+    font-size: 3em;
+}
+
+
+
+h1{
+    /* color:blue; */
+    color: #1100ff
+}
+
+
+h2{
+    color: #0ff100;
+    background-color: red;
+}
+
+div{
+    background-color: green;
+    border-color: orange;
+    border-width: 10px;
+    border-style: dashed;
+}
+
+span{
+    background-color: aqua;
+}
+
+body{
+    background-color: greenyellow;
+}
+
+
+.myclass{
+    color: red;
+}
+
+
+
+#one{
+    color: blue;
+}
+
+#two{
+    color:green;
+}

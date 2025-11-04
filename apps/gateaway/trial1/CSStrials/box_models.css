@@ -1,0 +1,14 @@
+/* margin>border> */
+
+#one{
+    text-align: center;
+    border: 10px solid blue;
+    margin-bottom: 20px;  
+    margin-left: 20px;  
+}
+
+#two{
+    text-align: center;
+    border: 10px dashed red;
+    padding-top: 20px;
+}

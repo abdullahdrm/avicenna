@@ -1,0 +1,44 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <form action="forms_redirected.html" method="POST">
+        <label for="fruit">Choose a fruit:</label>
+        <select id="fruit" name="fruit">
+            <option value="apple">Apple</option>
+            <option value="banana">Banana</option>
+            <option value="cherry">Cherry</option>
+            <option value="date">Date</option>
+        </select>
+
+        <br><br>
+
+        <p>Choose your location:</p>
+         
+        <input type="radio" id="inside" name="location" value="inside">
+        <label for="inside">Inside USA</label>
+
+        <input type="radio" id="outside" name="location" value="outside">
+        <label for="outside">Outside USA</label>
+
+        <!--Since name is the same, they are grouped together, so only one can be selected at a time-->
+        
+        <br><br>
+        <label for="comments">Comments:</label><br>
+        <textarea id="comments" name="comments" rows="4" cols="50" placeholder="Enter your comments here..."></textarea>
+
+        <br><br>
+        <label for="vehicle">Choose a vehicle:</label>
+        <select id="vehicle" name="vehicle">
+            <option value="car">Car</option>
+            <option value="bike">Bike</option>
+            <option value="boat">Boat</option>
+            <option value="plane">Plane</option>
+        </select>
+        <br><br>
+        <input type="submit" value="Submit">
+</body>
+</html>
