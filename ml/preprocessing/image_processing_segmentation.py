@@ -7,10 +7,29 @@ from skimage.segmentation import slic
 from skimage.filters.rank import entropy
 from skimage.morphology import disk
 
+"""
+INPUT_DIR       = "../avicenna/ml/datasets/testing/inputs"          
+OUTPUT_DIR      = "../avicenna/ml/datasets/testing/outputs"        
+REVIEW_DIR      = "../avicenna/ml/datasets/testing/review_outputs"  
+"""
 
-INPUT_DIR       = "../datasets/testing/inputs"          
-OUTPUT_DIR      = "../datasets/testing/outputs"        
-REVIEW_DIR      = "../datasets/testing/review_outputs"  
+from pathlib import Path  # <-- EKLE
+
+# Robust path resolution (works in GitLab CI and locally)
+try:
+    HERE = Path(__file__).resolve()          # .../AVICENNA/ml/preprocessing/image_processing_segmentation.py
+except NameError:
+    HERE = Path.cwd()                        
+
+ML_ROOT = HERE.parents[1]                    # .../AVICENNA/ml
+
+DEFAULT_INPUT  = ML_ROOT / "datasets" / "testing" / "inputs"
+DEFAULT_OUTPUT = ML_ROOT / "datasets" / "testing" / "outputs"
+DEFAULT_REVIEW = ML_ROOT / "datasets" / "testing" / "review_outputs"
+
+INPUT_DIR  = os.environ.get("INPUT_DIR",  str(DEFAULT_INPUT))
+OUTPUT_DIR = os.environ.get("OUTPUT_DIR", str(DEFAULT_OUTPUT))
+REVIEW_DIR = os.environ.get("REVIEW_DIR", str(DEFAULT_REVIEW))
 
 MAX_SIDE        = 1400              # Downscale long side 
 N_SEGMENTS      = 1200              # Number of SLIC superpixels (higher = finer regions)
