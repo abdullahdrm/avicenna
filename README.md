@@ -63,7 +63,11 @@ Longer description (optional)."
 
 git push -u origin feature/short-description
 ```
-
+If gives a connection refused error try this,
+```bash
+git remote set-url origin https://gitlab.ceng.metu.edu.tr/group14/avicenna.git
+```
+and try to push again.
 ## 4) Pull Request / Code Review
 - Open a PR and:
     - Pick a clear title and description.
