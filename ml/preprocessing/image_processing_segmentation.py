@@ -6,22 +6,15 @@ from PIL import Image
 from skimage.segmentation import slic
 from skimage.filters.rank import entropy
 from skimage.morphology import disk
+from pathlib import Path  
 
-"""
-INPUT_DIR       = "../avicenna/ml/datasets/testing/inputs"          
-OUTPUT_DIR      = "../avicenna/ml/datasets/testing/outputs"        
-REVIEW_DIR      = "../avicenna/ml/datasets/testing/review_outputs"  
-"""
 
-from pathlib import Path  # <-- EKLE
-
-# Robust path resolution (works in GitLab CI and locally)
 try:
-    HERE = Path(__file__).resolve()          # .../AVICENNA/ml/preprocessing/image_processing_segmentation.py
+    HERE = Path(__file__).resolve()          
 except NameError:
     HERE = Path.cwd()                        
 
-ML_ROOT = HERE.parents[1]                    # .../AVICENNA/ml
+ML_ROOT = HERE.parents[1]                   
 
 DEFAULT_INPUT  = ML_ROOT / "datasets" / "testing" / "inputs"
 DEFAULT_OUTPUT = ML_ROOT / "datasets" / "testing" / "outputs"

@@ -1,10 +1,16 @@
-Generates approximate lesion ROI masks before feeding images to our classifier (e.g., ViT). 
+Dermatology Image Pre-Processing (Unsupervised Segmentation)
 
-Pipeline: KMeans (Lab) → SLIC → (LoG + entropy) → trimap → GrabCut → morphology. Goal: reduce hair/glare/background noise and focus the model on the lesion.
+Generates approximate lesion ROI masks before feeding images to our classifier (e.g. ViT).
+
+Pipeline:
+KMeans (Lab) → SLIC → (LoG + entropy) → trimap → GrabCut → morphology
+
+Goal: reduce hair / glare / background noise and make the model focus on the lesion region.
 
 Input Requirements
 
-Place test images under:
-ml/datasets/testing/inputs
+Path: ml/datasets/testing/inputs
 
-Accepted formats: png, jpg, jpeg 
+Accepted formats: png, jpg, jpeg
+
+Place your test images in the folder above before running the script.
