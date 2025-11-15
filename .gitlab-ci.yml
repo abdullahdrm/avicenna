@@ -16,6 +16,6 @@ deploy_avicenna_pre_proc_seg_app_root:
   needs:
     - deploy_avicenna_pre_proc_seg_app
   rules:
-    - if: '$CI_COMMIT_BRANCH == "ml_preprocessing"' # || $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == "ml_preprocessing" #|| $CI_COMMIT_BRANCH == "main"
       changes:
         - ml/preprocessing/segmentation/**/*
