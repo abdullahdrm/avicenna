@@ -61,8 +61,7 @@ deploy_avicenna_pre_proc_seg_app:
     - docker rm $AVICENNA_PRE_PROC_SEG_TEMP_CONTAINER_NAME || true
 
     - echo "Building the new Docker image with API URLs..."
-    - docker build -t $AVICENNA_PRE_PROC_SEG_IMAGE_NAME -f ml/preprocessing/segmentation/Dockerfile .
-
+    - docker build -t $AVICENNA_PRE_PROC_SEG_IMAGE_NAME -f ml/preprocessing/segmentation/Dockerfile ml/preprocessing/segmentation
 
 
     - echo "Running the new image as a temporary container..."
