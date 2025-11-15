@@ -4,20 +4,18 @@ stages:
   - deploy
 
 include:
-  #Child gitlab-ci.yml file include edilir.
+  # Child gitlab-ci.yml file include edilir.
   - local: "ml/preprocessing/segmentation/.gitlab-ci.yml"
 
-services:
-#  - name: docker:20.10.16-dind
 
 deploy_avicenna_pre_proc_seg_app_root:
-# Her bir child gitlab-ci.yml için bir root oluşturulur.
+  # Her bir child gitlab-ci.yml için bir root oluşturulur.
   stage: deploy
   script:
     - echo "Deploying AVICENNA Preprocessing Segmentation..."
   needs:
     - deploy_avicenna_pre_proc_seg_app
   rules:
-    - if: $CI_COMMIT_BRANCH == "ml_preprocessing" #|| $CI_COMMIT_BRANCH == "main"
+    - if: '$CI_COMMIT_BRANCH == "ml_preprocessing"' # || $CI_COMMIT_BRANCH == "main"
       changes:
         - ml/preprocessing/segmentation/**/*
