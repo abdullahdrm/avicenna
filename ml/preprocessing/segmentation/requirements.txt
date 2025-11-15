@@ -3,3 +3,6 @@ opencv-python-headless
 matplotlib
 Pillow
 scikit-image
+fastapi
+uvicorn[standard]
+python-multipart
