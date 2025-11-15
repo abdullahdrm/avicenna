@@ -2,6 +2,7 @@ stages:
   - build
   - test
   - deploy
+  - post_deploy
 
 include:
   # Child gitlab-ci.yml file include edilir.
@@ -10,7 +11,7 @@ include:
 
 deploy_avicenna_pre_proc_seg_app_root:
   # Her bir child gitlab-ci.yml için bir root oluşturulur.
-  stage: deploy
+  stage: post_deploy
   script:
     - echo "Deploying AVICENNA Preprocessing Segmentation..."
   needs:
