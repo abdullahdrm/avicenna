@@ -36,7 +36,7 @@ build_avicenna_pre_proc_seg_app:
   rules:
     - if: $CI_COMMIT_BRANCH == "ml_preprocessing" #|| $CI_COMMIT_BRANCH == "main"
       changes:
-        - ml/preprocessing/seg/*/
+        - ml/preprocessing/seg/**/*
 
 test_avicenna_pre_proc_seg_app:
   stage: test
@@ -48,7 +48,7 @@ test_avicenna_pre_proc_seg_app:
   rules:
     - if: $CI_COMMIT_BRANCH == "ml_preprocessing" #|| $CI_COMMIT_BRANCH == "main"
       changes:
-        - ml/preprocessing/seg/*/
+        - ml/preprocessing/seg/**/*
 
 
 deploy_avicenna_pre_proc_seg_app:
@@ -105,4 +105,4 @@ deploy_avicenna_pre_proc_seg_app:
   rules:
     - if: $CI_COMMIT_BRANCH == "ml_preprocessing" #|| $CI_COMMIT_BRANCH == "main"
       changes:
-        - ml/preprocessing/seg/*/
+        - ml/preprocessing/seg/**/*
