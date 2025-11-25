@@ -12,8 +12,14 @@ export default function LoginScreen() {
     router.replace('/questionnaire' as any);
   };
   const handleLogin = () => {
-    router.replace('/(tabs)' as any);
-  };
+    const isDoctor = false;
+
+    if (isDoctor) {
+      router.replace('/(doctor)' as any);
+    } else {
+      router.replace('/(tabs)' as any);
+    }
+};
 
   return (
     <SafeAreaView style={styles.container}>
