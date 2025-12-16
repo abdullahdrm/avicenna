@@ -25,12 +25,13 @@ SECRET_KEY = 'django-insecure-@-0m(u&m+*^^c8qwss3p(osct=0#cyr#*!ykg1i1vzq1ota9pu
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*'] # DEVELOPMENT ONLY
 
 
 # Application definition
 
 INSTALLED_APPS = [
+
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -39,9 +40,10 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     "rest_framework_simplejwt",
-    #"corsheaders",
+    "corsheaders",
     #"drf_spectacular",
-    'avicenna_api'
+    'avicenna_api',
+
 ]
 
 MIDDLEWARE = [
@@ -52,7 +54,10 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    "corsheaders.middleware.CorsMiddleware",
 ]
+
+CORS_ALLOW_ALL_ORIGINS = True
 
 ROOT_URLCONF = 'avicenna.urls'
 
@@ -103,7 +108,7 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-# = 'avicenna_api.User'
+AUTH_USER_MODEL = 'avicenna_api.User'
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
@@ -133,8 +138,7 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.IsAuthenticated',
     ],
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'avicenna_api.authentication.CookiesJWTAuthentication',
-        #'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
         'rest_framework.authentication.SessionAuthentication',
     ],
 
@@ -142,3 +146,14 @@ REST_FRAMEWORK = {
     "PAGE_SIZE": 10,
 }
 
+from datetime import timedelta
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+    'AUTH_HEADER_TYPES': ('Bearer',),
+}
+
+
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
