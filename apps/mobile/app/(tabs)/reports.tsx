@@ -1,43 +1,85 @@
+import { useFocusEffect } from 'expo-router';
 import { AlertCircle, CheckCircle, ChevronRight, Clock, Download, FileText } from 'lucide-react-native';
-import React, { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { ActivityIndicator, Alert, Image, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+interface SkinAnalysis {
+  id: number;
+  image: string | null;
+  body_part: string;
+  status: 'analyzed' | 'review';
+  prediction: string | null;
+  confidence: number;
+  formatted_date: string;
+}
 
 const Card = ({ children, style }: any) => (
   <View style={[styles.card, style]}>{children}</View>
 );
 
-const Badge = ({ status }: any) => {
-  const isCompleted = status === 'completed';
+const Badge = ({ status }: { status: string }) => {
+  const isAnalyzed = status === 'analyzed';
   return (
-    <View style={[styles.badge, isCompleted ? styles.badgeSuccess : styles.badgePending]}>
-      <Text style={[styles.badgeText, isCompleted ? styles.textSuccess : styles.textPending]}>
-        {isCompleted ? 'Completed' : 'Under Review'}
+    <View style={[styles.badge, isAnalyzed ? styles.badgeSuccess : styles.badgePending]}>
+      <Text style={[styles.badgeText, isAnalyzed ? styles.textSuccess : styles.textPending]}>
+        {isAnalyzed ? 'Analyzed' : 'Under Review'}
       </Text>
     </View>
   );
 };
 
 export default function ReportsScreen() {
-  const [filter, setFilter] = useState<'all' | 'completed' | 'under-review'>('all');
+  const [reports, setReports] = useState<SkinAnalysis[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [filter, setFilter] = useState<'all' | 'analyzed' | 'review'>('all');
   const [selectedReport, setSelectedReport] = useState<number | null>(null);
 
-  const allReports = [
-    { id: 1, date: 'Nov 15, 2025', area: 'Forehead', status: 'completed', aiScore: 85, severity: 'low', findings: 'Mild acne, no scarring.' },
-    { id: 2, date: 'Nov 10, 2025', area: 'Left Cheek', status: 'under-review', aiScore: 72, severity: 'moderate', findings: 'Pending doctor review.' },
-    { id: 3, date: 'Nov 05, 2025', area: 'Right Arm', status: 'completed', aiScore: 92, severity: 'low', findings: 'Healthy skin, minor dryness.' },
-    { id: 4, date: 'Oct 28, 2025', area: 'Back', status: 'under-review', aiScore: 60, severity: 'high', findings: 'Requires detailed analysis.' },
-  ];
 
-  const filteredReports = allReports.filter((report) => {
+  const BASE_URL = 'http://10.149.24.43:8000';
+  const API_URL = `${BASE_URL}/api/skin-analysis/`;
+
+  const fetchReports = async () => {
+    try {
+      const response = await fetch(API_URL);
+      if (!response.ok) throw new Error("Failed to fetch reports");
+      const json = await response.json();
+      setReports(json);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchReports();
+    }, [])
+  );
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchReports();
+  };
+
+  const getImageUrl = (path: string | null) => {
+    if (!path) return null;
+    if (path.startsWith('http')) return path;
+    return `${BASE_URL}${path}`;
+  };
+
+  const filteredReports = reports.filter((report) => {
     if (filter === 'all') return true;
     return report.status === filter;
   });
 
   const counts = {
-    all: allReports.length,
-    completed: allReports.filter(r => r.status === 'completed').length,
-    review: allReports.filter(r => r.status === 'under-review').length,
+    all: reports.length,
+    analyzed: reports.filter(r => r.status === 'analyzed').length,
+    review: reports.filter(r => r.status === 'review').length,
   };
 
   return (
@@ -46,6 +88,7 @@ export default function ReportsScreen() {
         <Text style={styles.headerTitle}>Medical Reports</Text>
         <Text style={styles.headerSubtitle}>View and manage your analysis history</Text>
       </View>
+
       <View style={styles.filterContainer}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20 }}>
           <TouchableOpacity 
@@ -56,74 +99,93 @@ export default function ReportsScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity 
-            style={[styles.filterChip, filter === 'completed' && styles.filterChipActive]}
-            onPress={() => setFilter('completed')}
+            style={[styles.filterChip, filter === 'analyzed' && styles.filterChipActive]}
+            onPress={() => setFilter('analyzed')}
           >
-            <Text style={[styles.filterText, filter === 'completed' && styles.filterTextActive]}>Completed ({counts.completed})</Text>
+            <Text style={[styles.filterText, filter === 'analyzed' && styles.filterTextActive]}>Analyzed ({counts.analyzed})</Text>
           </TouchableOpacity>
 
           <TouchableOpacity 
-            style={[styles.filterChip, filter === 'under-review' && styles.filterChipActive]}
-            onPress={() => setFilter('under-review')}
+            style={[styles.filterChip, filter === 'review' && styles.filterChipActive]}
+            onPress={() => setFilter('review')}
           >
-            <Text style={[styles.filterText, filter === 'under-review' && styles.filterTextActive]}>Under Review ({counts.review})</Text>
+            <Text style={[styles.filterText, filter === 'review' && styles.filterTextActive]}>Under Review ({counts.review})</Text>
           </TouchableOpacity>
         </ScrollView>
       </View>
-      <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: 40 }}>
-        {filteredReports.length > 0 ? (
+
+      <ScrollView 
+        style={styles.content} 
+        contentContainerStyle={{ paddingBottom: 40 }}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#2563EB" />
+        }
+      >
+        {loading && !refreshing ? (
+          <View style={{ marginTop: 50 }}>
+            <ActivityIndicator size="large" color="#2563EB" />
+          </View>
+        ) : filteredReports.length > 0 ? (
           <View style={styles.list}>
             {filteredReports.map((report) => (
               <Card key={report.id} style={styles.reportCard}>
+                
                 <TouchableOpacity 
                    activeOpacity={0.7}
                    onPress={() => setSelectedReport(selectedReport === report.id ? null : report.id)}
                    style={styles.reportRow}
                 >
-                   <View style={[styles.iconBox, report.status === 'completed' ? styles.bgGreen : styles.bgOrange]}>
-                      {report.status === 'completed' ? <CheckCircle size={20} color="#16a34a" /> : <Clock size={20} color="#d97706" />}
+                   <View style={[styles.iconBox, report.status === 'analyzed' ? styles.bgGreen : styles.bgOrange]}>
+                      {report.image ? (
+                        <Image 
+                          source = {{ uri: getImageUrl(report.image) }} 
+                          style={styles.thumbnail} 
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        report.status === 'analyzed' 
+                          ? <CheckCircle size={20} color="#16a34a" /> 
+                          : <Clock size={20} color="#d97706" />
+                      )}
                    </View>
+
                    <View style={{ flex: 1 }}>
                       <View style={styles.rowBetween}>
-                        <Text style={styles.reportTitle}>{report.area}</Text>
-                        <ChevronRight size={20} color="#9CA3AF" style={selectedReport === report.id && {transform: [{rotate: '90deg'}]}} />
+                        <Text style={styles.reportTitle}>{report.body_part}</Text>
+                        <ChevronRight 
+                          size={20} 
+                          color="#9CA3AF" 
+                          style={selectedReport === report.id && {transform: [{rotate: '90deg'}]}} 
+                        />
                       </View>
-                      <Text style={styles.reportDate}>{report.date}</Text>
+                      <Text style={styles.reportDate}>{report.formatted_date}</Text>
                       <Badge status={report.status} />
                    </View>
                 </TouchableOpacity>
       
                 {selectedReport === report.id && (
                    <View style={styles.details}>
-                      <View style={[styles.statusBox, report.status === 'completed' ? styles.statusBoxGreen : styles.statusBoxOrange]}>
-                        <AlertCircle size={16} color={report.status === 'completed' ? '#166534' : '#92400E'} />
-                        <Text style={[styles.statusText, report.status === 'completed' ? styles.textSuccess : styles.textOrange]}>
-                          {report.status === 'completed' 
-                            ? 'Analysis complete. Reviewed by Dr. .' 
-                            : 'This report is currently being reviewed by a dermatologist.'}
+                      <View style={[styles.statusBox, report.status === 'analyzed' ? styles.statusBoxGreen : styles.statusBoxOrange]}>
+                        <AlertCircle size={16} color={report.status === 'analyzed' ? '#166534' : '#92400E'} />
+                        <Text style={[styles.statusText, report.status === 'analyzed' ? styles.textSuccess : styles.textOrange]}>
+                          {report.status === 'analyzed' 
+                            ? 'Analysis complete. Confidence: ' + (report.confidence * 100).toFixed(0) + '%'
+                            : 'This report is currently being reviewed by the system.'}
                         </Text>
                       </View>
 
                       <View style={styles.detailItem}>
                         <Text style={styles.detailLabel}>FINDINGS</Text>
-                        <Text style={styles.detailText}>{report.findings}</Text>
+                        <Text style={styles.detailText}>
+                          {report.prediction ? report.prediction : "No specific diagnosis returned yet."}
+                        </Text>
                       </View>
 
-                     {/* <View style={styles.statsRow}>
-                         <View style={styles.statBox}>
-                            <Text style={styles.detailLabel}>AI SCORE</Text>
-                            <Text style={styles.scoreText}>{report.aiScore}%</Text>
-                         </View>
-                         <View style={styles.statBox}>
-                            <Text style={styles.detailLabel}>SEVERITY</Text>
-                            <Text style={[styles.severityText, { color: report.severity === 'high' ? '#DC2626' : '#1F2937' }]}>
-                              {report.severity}
-                            </Text>
-                         </View>
-                      </View> */}
-                      
-                      {report.status === 'completed' && (
-                        <TouchableOpacity style={styles.downloadBtn}>
+                      {report.status === 'analyzed' && (
+                        <TouchableOpacity 
+                          style={styles.downloadBtn}
+                          onPress={() => Alert.alert("Coming Soon", "PDF generation will be added in a future update!")}
+                        >
                            <Download size={16} color="#374151" />
                            <Text style={styles.downloadText}>Download Full Report (PDF)</Text>
                         </TouchableOpacity>
@@ -137,7 +199,7 @@ export default function ReportsScreen() {
           <View style={styles.emptyState}>
             <FileText size={48} color="#D1D5DB" />
             <Text style={styles.emptyTitle}>No reports found</Text>
-            <Text style={styles.emptyText}>There are no reports in this category.</Text>
+            <Text style={styles.emptyText}>Upload a photo to see it here.</Text>
           </View>
         )}
       </ScrollView>
@@ -164,7 +226,9 @@ const styles = StyleSheet.create({
   card: { backgroundColor: 'white', borderRadius: 12, shadowColor: '#000', shadowOffset: {width:0, height:2}, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
   reportCard: { overflow: 'hidden' },
   reportRow: { padding: 16, flexDirection: 'row', gap: 16 },
-  iconBox: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
+  
+  iconBox: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  thumbnail: { width: '100%', height: '100%' },
   bgGreen: { backgroundColor: '#DCFCE7' },
   bgOrange: { backgroundColor: '#FEF3C7' },
   
@@ -190,11 +254,6 @@ const styles = StyleSheet.create({
   detailItem: { marginBottom: 16 },
   detailLabel: { fontSize: 10, fontWeight: 'bold', color: '#9CA3AF', marginBottom: 4, letterSpacing: 0.5 },
   detailText: { color: '#1F2937', fontSize: 14, lineHeight: 20 },
-  
-  statsRow: { flexDirection: 'row', gap: 12, marginBottom: 16 },
-  statBox: { flex: 1, backgroundColor: 'white', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#E5E7EB' },
-  scoreText: { fontSize: 20, fontWeight: 'bold', color: '#2563EB', marginTop: 4 },
-  severityText: { fontSize: 20, fontWeight: 'bold', textTransform: 'capitalize', marginTop: 4 },
   
   downloadBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, backgroundColor: 'white' },
   downloadText: { marginLeft: 8, fontWeight: '600', color: '#374151', fontSize: 14 },

@@ -14,14 +14,15 @@ export default function QuestionnaireScreen() {
   const [weight, setWeight] = useState('');
   const [skinType, setSkinType] = useState('');
   const [hasAllergies, setHasAllergies] = useState<boolean | null>(null);
-  const [allergyDetails, setAllergyDetails] = useState('');
-
-  const [medicalConditions, setMedicalConditions] = useState('');
-  const [medications, setMedications] = useState('');
-
+  const [selectedAllergies, setSelectedAllergies] = useState<string[]>([]);
+  const [allergyDetails, setAllergyDetails] = useState(''); 
+  const [selectedConditions, setSelectedConditions] = useState<string[]>([]);
+  const [medicalConditionsOther, setMedicalConditionsOther] = useState(''); 
+  const [selectedMedications, setSelectedMedications] = useState<string[]>([]);
+  const [medicationsOther, setMedicationsOther] = useState(''); 
   const [showSkinHelp, setShowSkinHelp] = useState(false);
-
   const genderOptions = ['Female', 'Male'];
+  
   const skinTypeOptions = [
     { label: 'Normal', desc: 'Balanced, clear, not sensitive' },
     { label: 'Dry', desc: 'Rough, flaky, tight feeling' },
@@ -30,6 +31,22 @@ export default function QuestionnaireScreen() {
     { label: 'Sensitive', desc: 'Redness, itching, reactive' },
   ];
 
+  const allergyOptions = [
+    'Penicillin', 'Latex', 'Nickel (Metals)', 
+    'Fragrances', 'Sunscreen', 'Aspirin', 'Peanuts'
+  ];
+
+  const conditionOptions = [
+    'Diabetes', 'PCOS', 'Lupus', 'Herpes',
+    'Insulin Resistance', 'Thyroid Diseases', 
+    'Celiac', 'IBD', 'Chronic Kidney Disease', 'Anemia',
+    'Sjögren Syndrome' , ' Liver Disease'
+  ];
+
+  const medicationOptions = [
+    'Accutane (Isotretinoin)', 'Antibiotics', 'Birth Control', 
+    'Retinoids', 'Corticosteroids', 'Vitamins'
+  ];
 
   const nextStep = () => {
     if (step < totalSteps) setStep(step + 1);
@@ -50,6 +67,20 @@ export default function QuestionnaireScreen() {
     setTimeout(() => {
       if (step < totalSteps) setStep(step + 1);
     }, 200);
+  };
+
+  const toggleSelection = (list: string[], setList: Function, item: string) => {
+    if (list.includes(item)) {
+      setList(list.filter(i => i !== item));
+    } else {
+      setList([...list, item]);
+    }
+  };
+
+  const formatList = (list: string[], other: string) => {
+    const combined = [...list];
+    if (other) combined.push(other);
+    return combined.length > 0 ? combined.join(', ') : 'None';
   };
 
   const ProgressBar = () => (
@@ -73,7 +104,6 @@ export default function QuestionnaireScreen() {
 
       <View style={styles.content}>
         
-
         {step === 1 && (
           <View style={styles.stepContainer}>
             <Text style={styles.question}>Personal Profile</Text>
@@ -186,35 +216,51 @@ export default function QuestionnaireScreen() {
         {step === 3 && (
           <View style={styles.stepContainer}>
             <Text style={styles.question}>Do you have allergies?</Text>
-            <Text style={styles.subQuestion}>Specific medicines, latex, or foods.</Text>
+            <Text style={styles.subQuestion}>Medicines, latex, or skin-contact allergens.</Text>
 
-            <View>
-              <TouchableOpacity 
-                style={[styles.optionBtn, hasAllergies === false && styles.optionBtnActive]}
-                onPress={() => setHasAllergies(false)}
-              >
-                <Text style={[styles.optionText, hasAllergies === false && styles.optionTextActive]}>No allergies</Text>
-                {hasAllergies === false && <Check size={20} color="#2563EB" />}
-              </TouchableOpacity>
-
-              <TouchableOpacity 
-                style={[styles.optionBtn, hasAllergies === true && styles.optionBtnActive]}
-                onPress={() => setHasAllergies(true)}
-              >
-                <Text style={[styles.optionText, hasAllergies === true && styles.optionTextActive]}>Yes, I have allergies</Text>
-                {hasAllergies === true && <Check size={20} color="#2563EB" />}
-              </TouchableOpacity>
+            <View style={{ flex: 1 }}>
+              <View style={styles.rowGrid}>
+                <TouchableOpacity 
+                  style={[styles.smallBtn, hasAllergies === false && styles.smallBtnActive]}
+                  onPress={() => { setHasAllergies(false); setSelectedAllergies([]); }}
+                >
+                  <Text style={[styles.smallBtnText, hasAllergies === false && styles.smallBtnTextActive]}>No Allergies</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.smallBtn, hasAllergies === true && styles.smallBtnActive]}
+                  onPress={() => setHasAllergies(true)}
+                >
+                  <Text style={[styles.smallBtnText, hasAllergies === true && styles.smallBtnTextActive]}>Yes, I do</Text>
+                </TouchableOpacity>
+              </View>
 
               {hasAllergies === true && (
-                <View style={{ marginTop: 20 }}>
-                  <Text style={styles.inputLabel}>Please list them below:</Text>
+                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
+                  <Text style={styles.sectionLabel}>Common Allergens</Text>
+                  <View style={styles.tagContainer}>
+                    {allergyOptions.map((allergy) => {
+                      const isSelected = selectedAllergies.includes(allergy);
+                      return (
+                        <TouchableOpacity 
+                          key={allergy}
+                          style={[styles.tag, isSelected && styles.tagActive]}
+                          onPress={() => toggleSelection(selectedAllergies, setSelectedAllergies, allergy)}
+                        >
+                          <Text style={[styles.tagText, isSelected && styles.tagTextActive]}>{allergy}</Text>
+                          {isSelected && <Check size={14} color="#2563EB" style={{ marginLeft: 4 }} />}
+                        </TouchableOpacity>
+                      )
+                    })}
+                  </View>
+
+                  <Text style={[styles.sectionLabel, { marginTop: 16 }]}>Other</Text>
                   <TextInput 
                     style={styles.textArea}
-                    placeholder="e.g. Penicillin, Peanuts..."
+                    placeholder="Type other allergies..."
                     value={allergyDetails}
                     onChangeText={setAllergyDetails}
                   />
-                </View>
+                </ScrollView>
               )}
             </View>
 
@@ -232,41 +278,57 @@ export default function QuestionnaireScreen() {
         {step === 4 && (
           <View style={styles.stepContainer}>
             <Text style={styles.question}>Medical History</Text>
-            <Text style={styles.subQuestion}>Help us ensure safe recommendations.</Text>
+            <Text style={styles.subQuestion}>Conditions and meds that affect your skin.</Text>
 
-            <ScrollView showsVerticalScrollIndicator={false}>
-              
-              <View style={styles.inputGroup}>
-                <View style={styles.labelRow}>
-                  <FileText size={16} color="#4B5563" />
-                  <Text style={styles.inputLabel}>Existing Conditions</Text>
-                </View>
-                <TextInput 
-                  style={styles.textArea}
-                  placeholder="List any chronic conditions (e.g., Diabetes, Psoriasis) or leave blank if none."
-                  value={medicalConditions}
-                  onChangeText={setMedicalConditions}
-                  multiline
-                  numberOfLines={3}
-                  textAlignVertical="top"
-                />
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
+              <View style={styles.labelRow}>
+                <FileText size={16} color="#4B5563" />
+                <Text style={styles.sectionLabel}>Skin & Health Conditions</Text>
               </View>
-
-              <View style={styles.inputGroup}>
-                <View style={styles.labelRow}>
-                  <Pill size={16} color="#4B5563" />
-                  <Text style={styles.inputLabel}>Current Medications</Text>
-                </View>
-                <TextInput 
-                  style={styles.textArea}
-                  placeholder="List any medications you take regularly."
-                  value={medications}
-                  onChangeText={setMedications}
-                  multiline
-                  numberOfLines={3}
-                  textAlignVertical="top"
-                />
+              <View style={styles.tagContainer}>
+                {conditionOptions.map((cond) => {
+                  const isSelected = selectedConditions.includes(cond);
+                  return (
+                    <TouchableOpacity 
+                      key={cond}
+                      style={[styles.tag, isSelected && styles.tagActive]}
+                      onPress={() => toggleSelection(selectedConditions, setSelectedConditions, cond)}
+                    >
+                      <Text style={[styles.tagText, isSelected && styles.tagTextActive]}>{cond}</Text>
+                    </TouchableOpacity>
+                  )
+                })}
               </View>
+              <TextInput 
+                style={[styles.input, { marginTop: 8 }]}
+                placeholder="Other conditions..."
+                value={medicalConditionsOther}
+                onChangeText={setMedicalConditionsOther}
+              />
+              <View style={[styles.labelRow, { marginTop: 24 }]}>
+                <Pill size={16} color="#4B5563" />
+                <Text style={styles.sectionLabel}>Current Medications</Text>
+              </View>
+              <View style={styles.tagContainer}>
+                {medicationOptions.map((med) => {
+                  const isSelected = selectedMedications.includes(med);
+                  return (
+                    <TouchableOpacity 
+                      key={med}
+                      style={[styles.tag, isSelected && styles.tagActive]}
+                      onPress={() => toggleSelection(selectedMedications, setSelectedMedications, med)}
+                    >
+                      <Text style={[styles.tagText, isSelected && styles.tagTextActive]}>{med}</Text>
+                    </TouchableOpacity>
+                  )
+                })}
+              </View>
+              <TextInput 
+                style={[styles.input, { marginTop: 8 }]}
+                placeholder="Other medications..."
+                value={medicationsOther}
+                onChangeText={setMedicationsOther}
+              />
 
             </ScrollView>
 
@@ -276,7 +338,6 @@ export default function QuestionnaireScreen() {
             </TouchableOpacity>
           </View>
         )}
-
         {step === 5 && (
           <View style={styles.stepContainer}>
             <Text style={styles.question}>All Set!</Text>
@@ -286,7 +347,7 @@ export default function QuestionnaireScreen() {
               <View style={styles.summaryCard}>
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryLabel}>Identity</Text>
-                  <Text style={styles.summaryValue}>{gender}, {age} years old</Text>
+                  <Text style={styles.summaryValue}>{gender}, {age} years</Text>
                 </View>
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryLabel}>Body</Text>
@@ -298,18 +359,20 @@ export default function QuestionnaireScreen() {
                 </View>
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryLabel}>Allergies</Text>
-                  <Text style={styles.summaryValue}>{hasAllergies ? 'Yes' : 'None'}</Text>
+                  <Text style={styles.summaryValue} numberOfLines={2}>
+                    {hasAllergies ? formatList(selectedAllergies, allergyDetails) : 'None'}
+                  </Text>
                 </View>
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryLabel}>Conditions</Text>
-                  <Text style={styles.summaryValue} numberOfLines={1}>
-                    {medicalConditions || 'None listed'}
+                  <Text style={styles.summaryValue} numberOfLines={2}>
+                    {formatList(selectedConditions, medicalConditionsOther)}
                   </Text>
                 </View>
                 <View style={[styles.summaryRow, { borderBottomWidth: 0 }]}>
                   <Text style={styles.summaryLabel}>Meds</Text>
-                  <Text style={styles.summaryValue} numberOfLines={1}>
-                    {medications || 'None listed'}
+                  <Text style={styles.summaryValue} numberOfLines={2}>
+                    {formatList(selectedMedications, medicationsOther)}
                   </Text>
                 </View>
               </View>
@@ -323,7 +386,6 @@ export default function QuestionnaireScreen() {
         )}
 
       </View>
-
       <Modal visible={showSkinHelp} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -333,40 +395,16 @@ export default function QuestionnaireScreen() {
                 <X size={24} color="#374151" />
               </TouchableOpacity>
             </View>
-            
             <ScrollView style={styles.modalScroll}>
-              <Text style={styles.modalText}>
-                <Text style={{fontWeight: 'bold'}}>1. Wash your face</Text> with a gentle cleanser and wait 30 minutes.
-              </Text>
-              
+              <Text style={styles.modalText}><Text style={{fontWeight: 'bold'}}>1. Wash your face</Text> with a gentle cleanser and wait 30 minutes.</Text>
               <Text style={styles.modalSubTitle}>Check your T-zone (forehead, nose, chin):</Text>
-              
-              <View style={styles.modalItem}>
-                <Text style={styles.modalLabel}>Normal:</Text>
-                <Text style={styles.modalDesc}>Comfortable, no excess oil or flaking.</Text>
-              </View>
-              <View style={styles.modalItem}>
-                <Text style={styles.modalLabel}>Oily:</Text>
-                <Text style={styles.modalDesc}>Shiny/greasy all over.</Text>
-              </View>
-              <View style={styles.modalItem}>
-                <Text style={styles.modalLabel}>Dry:</Text>
-                <Text style={styles.modalDesc}>Tight, flaky, or rough.</Text>
-              </View>
-              <View style={styles.modalItem}>
-                <Text style={styles.modalLabel}>Combination:</Text>
-                <Text style={styles.modalDesc}>Oily T-zone but dry/normal cheeks.</Text>
-              </View>
-              <View style={styles.modalItem}>
-                <Text style={styles.modalLabel}>Sensitive:</Text>
-                <Text style={styles.modalDesc}>Red, itchy, or stinging.</Text>
-              </View>
+              <View style={styles.modalItem}><Text style={styles.modalLabel}>Normal:</Text><Text style={styles.modalDesc}>Comfortable, no excess oil or flaking.</Text></View>
+              <View style={styles.modalItem}><Text style={styles.modalLabel}>Oily:</Text><Text style={styles.modalDesc}>Shiny/greasy all over.</Text></View>
+              <View style={styles.modalItem}><Text style={styles.modalLabel}>Dry:</Text><Text style={styles.modalDesc}>Tight, flaky, or rough.</Text></View>
+              <View style={styles.modalItem}><Text style={styles.modalLabel}>Combination:</Text><Text style={styles.modalDesc}>Oily T-zone but dry/normal cheeks.</Text></View>
+              <View style={styles.modalItem}><Text style={styles.modalLabel}>Sensitive:</Text><Text style={styles.modalDesc}>Red, itchy, or stinging.</Text></View>
             </ScrollView>
-
-            <TouchableOpacity 
-              style={styles.modalBtn} 
-              onPress={() => setShowSkinHelp(false)}
-            >
+            <TouchableOpacity style={styles.modalBtn} onPress={() => setShowSkinHelp(false)}>
               <Text style={styles.modalBtnText}>Got it</Text>
             </TouchableOpacity>
           </View>
@@ -384,55 +422,48 @@ const styles = StyleSheet.create({
   stepIndicator: { fontSize: 16, fontWeight: '600', color: '#6B7280' },
   progressContainer: { height: 4, backgroundColor: '#E5E7EB', marginHorizontal: 20, borderRadius: 2 },
   progressBar: { height: '100%', backgroundColor: '#2563EB', borderRadius: 2 },
-  
   content: { flex: 1, padding: 24 },
   stepContainer: { flex: 1 },
   question: { fontSize: 28, fontWeight: 'bold', color: '#111827', marginBottom: 8 },
   subQuestion: { fontSize: 16, color: '#6B7280', marginBottom: 24 },
-  
-  sectionLabel: { fontSize: 14, fontWeight: 'bold', color: '#374151', marginBottom: 8, textTransform: 'uppercase' },
-  
+  sectionLabel: { fontSize: 14, fontWeight: 'bold', color: '#374151', marginBottom: 12, textTransform: 'uppercase' },
+  labelRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 8 },
   helpBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#EFF6FF', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, gap: 4 },
   helpBtnText: { color: '#2563EB', fontSize: 12, fontWeight: '600' },
-
   rowGrid: { flexDirection: 'row', gap: 10, marginBottom: 20 },
   smallBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: '#E5E7EB', alignItems: 'center', backgroundColor: '#F9FAFB' },
   smallBtnActive: { backgroundColor: '#EFF6FF', borderColor: '#2563EB' },
   smallBtnText: { fontWeight: '500', color: '#374151' },
   smallBtnTextActive: { color: '#2563EB', fontWeight: 'bold' },
-
+  tagContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
+  tag: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: '#E5E7EB', backgroundColor: 'white', flexDirection: 'row', alignItems: 'center' },
+  tagActive: { backgroundColor: '#EFF6FF', borderColor: '#2563EB' },
+  tagText: { color: '#374151', fontSize: 14, fontWeight: '500' },
+  tagTextActive: { color: '#2563EB', fontWeight: '600' },
   optionBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 18, backgroundColor: '#F9FAFB', borderRadius: 16, marginBottom: 12, borderWidth: 1, borderColor: '#E5E7EB' },
   optionBtnActive: { backgroundColor: '#EFF6FF', borderColor: '#2563EB' },
   optionText: { fontSize: 16, fontWeight: '500', color: '#374151' },
   optionTextActive: { color: '#2563EB', fontWeight: '600' },
-
   inputGroup: { marginBottom: 20 },
-  labelRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 8 },
-  inputLabel: { fontSize: 14, fontWeight: '600', color: '#374151' },
   inputWrapper: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 12, paddingHorizontal: 16, backgroundColor: '#F9FAFB' },
   inputIcon: { marginRight: 12 },
   input: { flex: 1, paddingVertical: 16, fontSize: 16, color: '#111827' },
-  textArea: { borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 12, padding: 16, fontSize: 16, backgroundColor: '#F9FAFB', minHeight: 100 },
-
+  textArea: { borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 12, padding: 16, fontSize: 16, backgroundColor: '#F9FAFB', minHeight: 60 },
   cardBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, backgroundColor: 'white', borderRadius: 16, marginBottom: 12, borderWidth: 1, borderColor: '#E5E7EB', shadowColor: '#000', shadowOpacity: 0.05, shadowOffset: {width:0, height:2}, shadowRadius: 4, elevation: 2 },
   cardBtnActive: { borderColor: '#2563EB', backgroundColor: '#EFF6FF' },
   cardTitle: { fontSize: 18, fontWeight: '600', color: '#111827', marginBottom: 4 },
   cardTitleActive: { color: '#2563EB' },
   cardDesc: { fontSize: 14, color: '#6B7280' },
-
   radio: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: '#D1D5DB', alignItems: 'center', justifyContent: 'center' },
   radioActive: { borderColor: '#2563EB' },
   radioInner: { width: 12, height: 12, borderRadius: 6, backgroundColor: '#2563EB' },
-
   summaryCard: { backgroundColor: '#F9FAFB', borderRadius: 16, padding: 20, borderWidth: 1, borderColor: '#E5E7EB' },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#E5E7EB' },
   summaryLabel: { color: '#6B7280', fontSize: 14 },
   summaryValue: { color: '#111827', fontWeight: '600', fontSize: 14, maxWidth: '60%', textAlign: 'right' },
-
   nextButton: { backgroundColor: '#2563EB', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 18, borderRadius: 16, marginTop: 'auto', marginBottom: 20 },
   nextButtonDisabled: { backgroundColor: '#9CA3AF' },
   nextButtonText: { color: 'white', fontSize: 18, fontWeight: 'bold', marginRight: 8 },
-
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 },
   modalContent: { backgroundColor: 'white', borderRadius: 24, padding: 24, maxHeight: '80%' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },

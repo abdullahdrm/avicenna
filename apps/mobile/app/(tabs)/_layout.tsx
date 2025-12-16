@@ -10,18 +10,26 @@ export default function TabLayout() {
       tabBarInactiveTintColor: '#9CA3AF',
       headerShown: false,
       tabBarStyle: {
-        height: 70,
-        paddingBottom: 10,
-        paddingTop: 10,
+        position: 'absolute', 
+        bottom: 45,            
+        left: 20,              
+        right: 20,             
         backgroundColor: 'white',
-        borderTopWidth: 1,
-        borderTopColor: '#F3F4F6',
-        elevation: 0,
+        borderRadius: 15,      
+        height: 65,          
+        elevation: 5,        
+        shadowColor: '#fffcfcff',  
+        shadowOffset: { width: 0, height: 5 },
+        shadowOpacity: 0.1,
+        shadowRadius: 5,
+        paddingBottom: 0,     
+        paddingTop: 0,
+        borderTopWidth: 0,    
       },
       tabBarLabelStyle: {
         fontSize: 12,
         fontWeight: '500',
-        marginTop: 4,
+        marginTop: 1,
       }
     }}>
       
@@ -45,9 +53,9 @@ export default function TabLayout() {
           title: '', 
           tabBarIcon: ({ focused }) => (
             <View style={{
-              width: 60,
-              height: 60,
-              borderRadius: 35,
+              width: 70,
+              height: 70,
+              borderRadius: 50,
               backgroundColor: '#2563EB',
               justifyContent: 'center',
               alignItems: 'center',
