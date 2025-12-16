@@ -8,3 +8,7 @@ admin.site.register(DoctorProfile)
 admin.site.register(Submission)
 admin.site.register(Report)
 admin.site.register(Medication)
+@admin.register(SkinAnalysis)
+class SkinAnalysisAdmin(admin.ModelAdmin):
+    list_display = ('body_part', 'status', 'created_at')
+

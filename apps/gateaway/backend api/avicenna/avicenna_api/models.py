@@ -189,3 +189,20 @@ class Medication(models.Model):
     )
     name = models.CharField(max_length=255)
     frequency = models.CharField(max_length=255)
+    
+class SkinAnalysis(models.Model):
+    image = models.ImageField(upload_to='skin_scans/')
+    body_part = models.CharField(max_length=100, default="Face")
+    prediction = models.CharField(max_length=100, blank=True, null=True)
+    confidence = models.FloatField(default=0.0)
+
+    status = models.CharField(
+        max_length=20,
+        choices=[('analyzed', 'Analyzed'), ('review', 'Under Review')],
+        default='review'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.body_part} - {self.created_at.strftime('%Y-%m-%d')}"
+

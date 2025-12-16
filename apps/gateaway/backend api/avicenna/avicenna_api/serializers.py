@@ -225,3 +225,14 @@ class ReportCreateSerializer(serializers.ModelSerializer):
             Medication.objects.create(report=report, **med)
 
         return report
+    
+class SkinAnalysisSerializer(serializers.ModelSerializer):
+    formatted_date = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SkinAnalysis
+        fields = ['id', 'image', 'body_part', 'prediction', 'confidence', 'status', 'created_at', 'formatted_date']
+
+    def get_formatted_date(self, obj):
+        return obj.created_at.strftime('%b %d')
+
