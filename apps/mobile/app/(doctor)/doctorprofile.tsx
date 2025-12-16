@@ -1,7 +1,22 @@
-import { Bell, ChevronRight, HelpCircle, Languages, LogOut, Shield, Stethoscope, User } from 'lucide-react-native';
-import React from 'react';
-import { Image, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
+import * as SecureStore from 'expo-secure-store';
+import { LogOut } from 'lucide-react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+  Alert,
+  Image,
+  Modal,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+const API_URL = 'http://172.20.10.2:8000/api';
 
 
 const Card = ({ children, style }: any) => (
@@ -10,141 +25,274 @@ const Card = ({ children, style }: any) => (
 
 
 export default function DoctorProfileScreen() {
-  const doctorInfo = { 
-    name: 'Dr. İsim Soyisim',
-    email: 'doctor@email.com',
-    specialization: 'Dermatology'
+  const router = useRouter();
+
+  const [doctorInfo, setDoctorInfo] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+
+
+  const formatDays = (days?: string[]) => {
+    if (!days || days.length === 0) return '-';
+
+    const map: Record<string, string> = {
+      mon: 'Mon',
+      tue: 'Tue',
+      wed: 'Wed',
+      thu: 'Thu',
+      fri: 'Fri',
+      sat: 'Sat',
+      sun: 'Sun',
+    };
+
+    return days.map(d => map[d] ?? d).join(' – ');
   };
 
-  const settingsItems = [
-    { icon: Bell, label: 'Notifications', type: 'switch', value: true },
-    { icon: Languages, label: 'Language', type: 'link', sub: 'English' },
-    { icon: Shield, label: 'Privacy & Security', type: 'link' },
-    { icon: HelpCircle, label: 'Help & Support', type: 'link' },
-  ];
+
+  const handleLogout = () => {
+    Alert.alert('Sign out', 'Are you sure?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Sign Out',
+        style: 'destructive',
+        onPress: async () => {
+          await SecureStore.deleteItemAsync('access_token');
+          await SecureStore.deleteItemAsync('refresh_token');
+          router.replace('/login');
+        },
+      },
+    ]);
+  };
+
+
+  const fetchProfile = async (isRefresh = false) => {
+    try {
+      if (!isRefresh) setLoading(true);
+
+      const token = await SecureStore.getItemAsync('access_token');
+      if (!token) return;
+
+      const res = await fetch(`${API_URL}/doctor/profile/`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) throw new Error('Fetch failed');
+
+      const data = await res.json();
+      setDoctorInfo(data);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchProfile();
+    }, [])
+  );
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchProfile(true);
+  };
+
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: 40 }}>
-        
-        {/* Profile */}
-        <View style={styles.headerProfile}>
-           
-           <View style={styles.profileRow}>
-              <View style={styles.avatarContainer}>
-                 <Image style={styles.avatar} />
+      <ScrollView
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        contentContainerStyle={{ paddingBottom: 40 }}
+      >
+        {loading ? (
+          <View style={styles.emptyState}>
+            <Text>Loading profile...</Text>
+          </View>
+        ) : (
+          <>
+            {/* HEADER */}
+            <View style={styles.headerProfile}>
+              <View style={styles.profileRow}>
+                <View style={styles.avatarContainer}>
+                  <Image style={styles.avatar} />
+                </View>
+                <View>
+                  <Text style={styles.name}>
+                    {doctorInfo?.user?.first_name} {doctorInfo?.user?.last_name}
+                  </Text>
+                  <Text style={styles.email}>{doctorInfo?.user?.email}</Text>
+                </View>
               </View>
-              <View>
-                 <Text style={styles.name}>{doctorInfo.name}</Text>
-                 <Text style={styles.email}>{doctorInfo.email}</Text>
-                 <View style={styles.tag}>
-                   <Text style={styles.tagText}>{doctorInfo.specialization}</Text>
-                 </View>
-              </View>
-           </View>
 
-           {/* Stats */}
-           <View style={styles.statsContainer}>
-              <View style={styles.statItem}>
-                 <Text style={styles.statValue}>156</Text>
-                 <Text style={styles.statLabel}>PATIENTS</Text>
+              {/* STATS */}
+              <View style={styles.statsContainer}>
+                <Stat value={doctorInfo?.stats?.patients_count ?? 0} label="PATIENTS" />
+                <View style={styles.divider} />
+                <Stat value={doctorInfo?.stats?.submissions_reviewed ?? 0} label="REVIEWED" />
+                <View style={styles.divider} />
+                <Stat value={doctorInfo?.stats?.active_days ?? 0} label="DAYS" />
               </View>
-              <View style={styles.divider} />
-              <View style={styles.statItem}>
-                 <Text style={styles.statValue}>568</Text>
-                 <Text style={styles.statLabel}>SUBMISSION REVIEWED</Text>
-              </View>
-              <View style={styles.divider} />
-              <View style={styles.statItem}>
-                 <Text style={styles.statValue}>196</Text>
-                 <Text style={styles.statLabel}>DAYS</Text>
-              </View>
-           </View>
-        </View>
-
-        <View style={styles.body}>
-           
-           {/* Details */}
-           <Card style={styles.infoCard}>
-              <Text style={styles.sectionTitle}>Professional Details</Text>
-              <View style={styles.infoRow}>
-                 <Text style={styles.infoLabel}>Experience</Text>
-                 <Text style={styles.infoValue}>12 years</Text>
-              </View>
-              <View style={styles.infoRow}>
-                 <Text style={styles.infoLabel}>License No</Text>
-                 <Text style={styles.infoValue}>DR-458203</Text>
-              </View>
-              <View style={[styles.infoRow, { borderBottomWidth: 0 }]}>
-                 <Text style={styles.infoLabel}>City</Text>
-                 <Text style={styles.infoValue}>Ankara</Text>
-              </View>
-              <View style={[styles.infoRow, { borderBottomWidth: 0 }]}>
-                 <Text style={styles.infoLabel}>Hospital</Text>
-                 <Text style={styles.infoValue}>Bilkent Şehir Hastanesi</Text>
-              </View>
-           </Card>
-          
-          {/* Preferences */}
-          <Card style={styles.infoCard}>
-            <View style={styles.prefHeader}>
-              <Text style={styles.sectionTitle}>Preferences</Text>
-
-              <TouchableOpacity>
-                <Text style={styles.editText}>Edit</Text>
-              </TouchableOpacity>
             </View>
 
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Allowed Submission Days</Text>
-              <Text style={styles.infoValue}>Mon – Fri</Text>
-            </View>
-
-            <View style={[styles.infoRow, { borderBottomWidth: 0 }]}>
-              <Text style={styles.infoLabel}>Max Submissions / Day</Text>
-              <Text style={styles.infoValue}>25</Text>
-            </View>
-          </Card>
-
-           {/* Settings */}
-           <View style={styles.settingsSection}>
-              <Text style={[styles.sectionTitle, { paddingHorizontal: 4 }]}>Settings</Text>
-              <Card>
-                 {settingsItems.map((item, index) => {
-                    const Icon = item.icon;
-                    return (
-                       <View key={index} style={[styles.settingRow, index !== 0 && styles.borderTop]}>
-                          <View style={styles.iconBox}>
-                             <Icon size={20} color="#4B5563" />
-                          </View>
-                          <View style={{ flex: 1 }}>
-                            <Text style={styles.settingLabel}>{item.label}</Text>
-                            {item.sub && <Text style={styles.settingSub}>{item.sub}</Text>}
-                          </View>
-                          
-                          {item.type === 'switch' ? (
-                             <Switch value={item.value} trackColor={{true: '#2563EB', false: '#E5E7EB'}} thumbColor="white" />
-                          ) : (
-                             <ChevronRight size={20} color="#9CA3AF" />
-                          )}
-                       </View>
-                    );
-                 })}
+            {/* BODY */}
+            <View style={styles.body}>
+              <Card style={styles.infoCard}>
+                <Text style={styles.sectionTitle}>Professional Details</Text>
+                <InfoRow label="Experience" value={`${doctorInfo?.experience_years} years`} />
+                <InfoRow label="City" value={doctorInfo?.city} />
+                <InfoRow label="Hospital" value={doctorInfo?.hospital} last />
               </Card>
-           </View>
 
-           {/* Logout */}
-           <TouchableOpacity style={styles.logoutBtn}>
-              <LogOut size={18} color="#DC2626" />
-              <Text style={styles.logoutText}>Sign Out</Text>
-           </TouchableOpacity>
-           
-           <Text style={styles.version}>Version 1.0.0</Text>
-        </View>
+              <Card style={styles.infoCard}>
+                <View style={styles.prefHeader}>
+                  <Text style={styles.sectionTitle}>Preferences</Text>
+                  <TouchableOpacity onPress={() => setEditOpen(true)}>
+                    <Text style={styles.editText}>Edit</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <InfoRow
+                  label="Allowed Days"
+                  value={formatDays(doctorInfo?.allowed_days)}
+                />
+                <InfoRow
+                  label="Max / Day"
+                  value={doctorInfo?.max_submissions_per_day}
+                  last
+                />
+              </Card>
+
+              <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+                <LogOut size={18} color="#DC2626" />
+                <Text style={styles.logoutText}>Sign Out</Text>
+              </TouchableOpacity>
+
+              <Text style={styles.version}>Version 1.0.0</Text>
+            </View>
+          </>
+        )}
+
+        <EditProfileModal
+          visible={editOpen}
+          onClose={() => setEditOpen(false)}
+          allowed_days={doctorInfo?.allowed_days}
+          max_submissions_per_day={doctorInfo?.max_submissions_per_day}
+          onSaved={fetchProfile}
+        />
       </ScrollView>
     </SafeAreaView>
   );
 }
+
+
+
+const Stat = ({ value, label }: any) => (
+  <View style={{ alignItems: 'center' }}>
+    <Text style={styles.statValue}>{value}</Text>
+    <Text style={styles.statLabel}>{label}</Text>
+  </View>
+);
+
+const InfoRow = ({ label, value, last }: any) => (
+  <View style={[styles.infoRow, last && { borderBottomWidth: 0 }]}>
+    <Text style={styles.infoLabel}>{label}</Text>
+    <Text style={styles.infoValue}>{value ?? '-'}</Text>
+  </View>
+);
+
+
+
+const EditProfileModal = ({
+  visible,
+  onClose,
+  allowed_days,
+  max_submissions_per_day,
+  onSaved,
+}: any) => {
+  const [newAllowedDays, setNewAllowedDays] = useState('');
+  const [newMaxSubmission, setNewMaxSubmission] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setNewAllowedDays(allowed_days ?? '');
+    setNewMaxSubmission(max_submissions_per_day ?? '');
+  }, [allowed_days, max_submissions_per_day]);
+
+  const saveChanges = async () => {
+    if (!newAllowedDays || !newMaxSubmission) {
+      Alert.alert('Error', 'Both fields are required');
+      return;
+    }
+
+    try {
+      setSaving(true);
+      const token = await SecureStore.getItemAsync('access_token');
+      if (!token) return;
+
+      const res = await fetch(`${API_URL}/doctor/profile/`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          allowed_days: newAllowedDays,
+          max_submissions_per_day: newMaxSubmission,
+        }),
+      });
+
+      if (!res.ok) throw new Error();
+
+      onSaved();
+      onClose();
+    } catch {
+      Alert.alert('Error', 'Update failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="slide">
+      <View style={modalStyles.overlay}>
+        <View style={modalStyles.modal}>
+          <Text style={modalStyles.title}>Edit Profile</Text>
+
+          <Text style={modalStyles.label}>Allowed Days</Text>
+          <TextInput
+            value={newAllowedDays}
+            onChangeText={setNewAllowedDays}
+            style={modalStyles.input}
+          />
+
+          <Text style={modalStyles.label}>Max Submission / Day</Text>
+          <TextInput
+            value={newMaxSubmission}
+            onChangeText={setNewMaxSubmission}
+            style={modalStyles.input}
+          />
+
+          <View style={modalStyles.actions}>
+            <TouchableOpacity onPress={onClose}>
+              <Text style={modalStyles.cancelText}>Cancel</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={modalStyles.saveBtn} onPress={saveChanges}>
+              <Text style={modalStyles.saveText}>
+                {saving ? 'Saving...' : 'Save'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
+
 
 // STYLES
 const styles = StyleSheet.create({
@@ -209,6 +357,68 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 60,
+    gap: 12,
+  },
 
 });
+
+
+const modalStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-end',
+  },
+  modal: {
+    backgroundColor: 'white',
+    padding: 20,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 16,
+  },
+  label: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginBottom: 4,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 14,
+  },
+  actions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 12,
+    marginTop: 10,
+  },
+  cancelBtn: {
+    paddingVertical: 12,
+    paddingHorizontal: 18,
+  },
+  cancelText: {
+    color: '#6B7280',
+    fontWeight: '600',
+  },
+  saveBtn: {
+    backgroundColor: '#2563EB',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+  },
+  saveText: {
+    color: 'white',
+    fontWeight: 'bold',
+  },
+});
+

@@ -1,8 +1,12 @@
-import { useRouter } from 'expo-router';
-import { Activity, Bell, ClipboardList, FileText, MessageSquare, Stethoscope } from 'lucide-react-native';
-import React from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import * as SecureStore from 'expo-secure-store';
+import { Bell, ClipboardList, FileText, Stethoscope } from 'lucide-react-native';
+import React, { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+
+const API_URL = 'http://172.20.10.2:8000/api';
 
 
 const Card = ({ children, style }: any) => (
@@ -25,28 +29,59 @@ const StatCard = ({ value, label }: any) => (
 );
 
 
-
 export default function DoctorHomeScreen() {
   const router = useRouter();
+  const [dashboard, setDashboard] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const notifications = [
-    { id: 1, message: 'New case submitted for review', time: '1h ago', unread: true },
-    { id: 2, message: 'Patient sent a message', time: '5h ago', unread: false },
-  ];
-
-  const recentCases = [
-    { id: 1, patient: 'Şevval Özay', status: 'Pending Review' },
-    { id: 2, patient: 'Zeynep Sude Doğan', status: 'Completed' },
-  ];
+  const fetchDashboard = async (isRefresh = false) => {
+        try {
+           if (!isRefresh) setLoading(true);
+  
+           const token = await SecureStore.getItemAsync('access_token');
+           if (!token) return;
+  
+           const response = await fetch(`${API_URL}/doctor/dashboard/`, {
+              headers: { Authorization: `Bearer ${token}` },
+           });
+  
+           if (!response.ok) return;
+  
+           const data = await response.json();
+           const list = Array.isArray(data) ? data : data.results;
+  
+           setDashboard(data); 
+           } catch (error) {
+              console.error('Failed to load dashboard', error);
+           } finally {
+              setLoading(false);
+              setRefreshing(false);
+           }
+        };
+        useFocusEffect(
+              useCallback(() => {
+                fetchDashboard();
+              }, [])
+            );
+        const onRefresh = () => {
+        setRefreshing(true);
+        fetchDashboard(true);
+      };
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.scrollView} contentContainerStyle={{ paddingBottom: 20 }}>
 
-
+        {loading ? (
+          <View style={styles.emptyState}>
+                               <Text>Loading profile...</Text>
+                             </View>
+                           ):( <>
+        {/* Header */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.greeting}>Hello Doctor</Text>
+            <Text style={styles.greeting}>Hello Dr. {dashboard?.doctor?.first_name} {dashboard?.doctor?.last_name}</Text>
             <Text style={styles.subGreeting}>Review and manage patients</Text>
           </View>
           <TouchableOpacity style={styles.bellButton}>
@@ -55,12 +90,21 @@ export default function DoctorHomeScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Stats */}
         <View style={styles.statsRow}>
-          <StatCard value="24" label="Pending Submissions" />
-          <StatCard value="568" label="Completed Submission Reviews" />
-          <StatCard value="156" label="Patients" />
+          <StatCard
+            value={dashboard?.stats.pending_submissions ?? '-'}
+            label="Pending Submissions"
+          />
+          <StatCard
+            value={dashboard?.stats?.completed_submissions ?? '-'}
+            label="Completed Reviews"
+          />
+          <StatCard
+            value={dashboard?.stats?.patients_count ?? '-'}
+            label="Patients"
+          />
         </View>
+
 
         {/* Quick Actions */}
         <View style={styles.section}>
@@ -69,7 +113,9 @@ export default function DoctorHomeScreen() {
           <View style={styles.actionRow}>
             <TouchableOpacity 
               style={[styles.bigActionBtn, { backgroundColor: '#2563EB' }]}
-              onPress={() => router.push('/index')}
+              onPress={() => router.push({
+                pathname: '/(doctor)/submissions',
+                params: { date: 'today' , filter: 'all'},})}
             >
               <ClipboardList color="white" size={28} />
               <Text style={styles.bigActionText}>Today's Submissions</Text>
@@ -77,75 +123,72 @@ export default function DoctorHomeScreen() {
 
             <TouchableOpacity 
               style={[styles.bigActionBtn, { backgroundColor: 'white', borderWidth: 1, borderColor: '#E5E7EB' }]}
-              onPress={() => router.push('/index')}
+              onPress={() => router.push({pathname: '/(doctor)/submissions', params: { filter: 'pending', date:'all'},})}
             >
               <FileText color="#374151" size={28} />
-              <Text style={[styles.bigActionText, { color: '#374151' }]}>Submission History</Text>
+              <Text style={[styles.bigActionText, { color: '#374151' }]}>Pending Submissions</Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Notifications */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Notifications</Text>
-            <Badge text="NEW" color="#DBEAFE" textColor="#1E40AF" />
-          </View>
-
-          <Card>
-            {notifications.map((n, i) => (
-              <View key={n.id} style={[styles.notifItem, i !== 0 && styles.borderTop]}>
-                <View style={[styles.iconBox, { backgroundColor: '#EFF6FF' }]}>
-                  <Activity size={18} color="#2563EB" />
-                </View>
-
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.notifText}>{n.message}</Text>
-                  <Text style={styles.notifTime}>{n.time}</Text>
-                </View>
-
-                {n.unread && <View style={styles.unreadDot} />}
-              </View>
-            ))}
-          </Card>
-        </View>
-
-        {/* Latest Submissions */}
+        {/* Recent Cases */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Latest Submission</Text>
-            <TouchableOpacity onPress={() => router.push('/index')}>
+
+            <TouchableOpacity onPress={() => router.push({
+                pathname: '/(doctor)/submissions',
+                params: { date: 'all' , filter: 'all'},})}>
               <Text style={styles.linkText}>View All</Text>
             </TouchableOpacity>
           </View>
 
-          {recentCases.map(c => (
-            <Card key={c.id} style={{ marginBottom: 10, padding: 14, flexDirection: 'row', alignItems: 'center' }}>
-              <View style={styles.iconBoxLarge}>
-                <Stethoscope size={20} color="#2563EB" />
-              </View>
+          {dashboard?.recent_cases?.length === 0 && (
+            <Text style={{ color: '#6B7280' }}>No recent submissions</Text>
+          )}
 
-              <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={styles.itemTitle}>{c.patient}</Text>
-              </View>
+          {dashboard?.recent_cases?.map((c: any) => (
+            <TouchableOpacity
+              key={c.id}
+              activeOpacity={0.7}
+              onPress={() => router.push({pathname: '/submissiondetail',
+                      params: { id: c.id },})}
+            >
+              <Card
+                style={{
+                  marginBottom: 10,
+                  padding: 14,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                }}
+              >
+                <View style={styles.iconBoxLarge}>
+                  <Stethoscope size={20} color="#2563EB" />
+                </View>
 
-              <Badge 
-                text={c.status} 
-                color={c.status === 'Pending Review' ? '#FEF3C7' : '#DCFCE7'}
-                textColor={c.status === 'Pending Review' ? '#B45309' : '#166534'}
-              />
-            </Card>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={styles.itemTitle}>{c.patient_name}</Text>
+                </View>
+
+                <Badge
+                  text={c.status === 'pending' ? 'Pending Review' : 'Completed'}
+                  color={c.status === 'pending' ? '#FEF3C7' : '#DCFCE7'}
+                  textColor={c.status === 'pending' ? '#B45309' : '#166534'}
+                />
+              </Card>
+            </TouchableOpacity>
           ))}
         </View>
 
-        
-
+      </>
+      )}
+          
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-// STYLES
+// ---- STYLES ----
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F9FAFB' },
@@ -236,6 +279,17 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 10,
     backgroundColor: '#EFF6FF',
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 60,
+    gap: 12,
+  },
+  submissionRow: {
+    padding: 16,
+    flexDirection: 'row',
+    gap: 16,
   },
 
   notifItem: { padding: 16, flexDirection: 'row', gap: 12, alignItems: 'center' },

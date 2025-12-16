@@ -4,7 +4,7 @@ import { useAuth } from "../_layout";
 export default function AuthLayout() {
   const { isLoggedIn } = useAuth();
 
-  if (isLoggedIn) {
+  if (false) {
     return <Redirect href="/(tabs)" />;
   }
 

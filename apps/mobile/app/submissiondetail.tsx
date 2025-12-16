@@ -1,10 +1,25 @@
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { Image, ScrollView, StyleSheet, Text, View, LayoutAnimation } from "react-native";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import * as SecureStore from "expo-secure-store";
+import {
+  Calendar,
+  ChevronDown,
+  ChevronLeft,
+  ChevronUp,
+} from "lucide-react-native";
+import React, { useCallback, useState } from "react";
+import {
+  ActivityIndicator,
+  Image,
+  LayoutAnimation,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ChevronLeft, ChevronDown, ChevronUp, Calendar } from "lucide-react-native";
-import React, { useState } from "react";
-import { TouchableOpacity } from "react-native";
 
+const API_URL = "http://172.20.10.2:8000/api";
 
 const Card = ({ children, style }: any) => (
   <View style={[styles.card, style]}>{children}</View>
@@ -15,41 +30,56 @@ export default function SubmissionDetail() {
   const router = useRouter();
 
   const [expanded, setExpanded] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [submission, setSubmission] = useState<any>(null);
 
-  const submission = {
-    id,
-    patientName: "Şevval Özay",
-    age: 23,
-    gender: "Female",
-    profileImage: "https://via.placeholder.com/80",
-    date: "Nov 23, 2025",
-    allergies: "Pollen",
-    diseases: "Asthma",
-    medications: "Glukofen",
-    image: "https://via.placeholder.com/300x300.png?text=Submitted+Photo",
+  const fetchSubmission = async () => {
+    try {
+      setLoading(true);
+      const token = await SecureStore.getItemAsync("access_token");
+      if (!token) return;
 
-    place: "Left cheek",
-    duration: "3 days",
-    painLevel: "Mild",
-    patientComment: "It started itching yesterday.",
+      const response = await fetch(`${API_URL}/submissions/${id}/`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-    aiAnalysis: "This will be replaced by our analysis.",
+      const data = await response.json();
+      setSubmission(data);
+    } catch (e) {
+      console.error(e);
+      setSubmission({});
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const history = [
-    { id: 1, date: "Nov 12", image: "https://via.placeholder.com/140" },
-    { id: 2, date: "Oct 28", image: "https://via.placeholder.com/140" },
-    { id: 3, date: "Oct 10", image: "https://via.placeholder.com/140" },
-  ];
+  useFocusEffect(
+    useCallback(() => {
+      fetchSubmission();
+    }, [id])
+  );
 
   const toggleExpand = () => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setExpanded(!expanded);
   };
 
+  if (loading) {
+    return (
+      <SafeAreaView style={{ flex: 1, justifyContent: "center" }}>
+        <ActivityIndicator size="large" />
+      </SafeAreaView>
+    );
+  }
+
+  const patient = submission?.patient;
+  const profile = patient?.profile;
+  const isReviewed = submission?.status?.toLowerCase() === "reviewed";
+
+
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: 40 }}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
 
         <View style={styles.topBar}>
           <TouchableOpacity onPress={() => router.back()}>
@@ -59,76 +89,81 @@ export default function SubmissionDetail() {
           <View style={{ width: 26 }} />
         </View>
 
+
         <Card style={[styles.sectionCard, styles.patientCard]}>
           <TouchableOpacity style={styles.expandHeader} onPress={toggleExpand}>
             <Text style={styles.patientTitle}>Patient Information</Text>
-            {expanded ? <ChevronUp size={20} color="#1F2937" /> : <ChevronDown size={20} color="#1F2937" />}
+            {expanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
           </TouchableOpacity>
 
           <View style={styles.profileRow}>
-            <Image source={{ uri: submission.profileImage }} style={styles.avatar} />
+            <View style={styles.avatar} />
 
             <View style={{ flex: 1 }}>
-              <TouchableOpacity onPress={() => router.push(`/patients`)}>
-                <Text style={styles.patientName}>{submission.patientName}</Text>
-              </TouchableOpacity>
-
-              <Text style={styles.subInfoText}>
-                {submission.age} • {submission.gender}
+              <Text style={styles.patientName}>
+                {patient
+                  ? `${patient.first_name || ""} ${patient.last_name || ""}`.trim() ||
+                    patient.username
+                  : "-"}
               </Text>
 
               <View style={styles.dateRow}>
                 <Calendar size={16} color="#6B7280" />
-                <Text style={styles.dateText}>{submission.date}</Text>
+                <Text style={styles.dateText}>
+                  {submission?.created_at
+                    ? new Date(submission.created_at).toLocaleDateString()
+                    : "-"}
+                </Text>
               </View>
             </View>
           </View>
 
           {expanded && (
-            <View style={styles.expandedBox}>
-
+            <>
               <View style={styles.separator} />
 
               <View style={styles.infoRowLine}>
-                <Text style={styles.infoLeft}>Body</Text>
-                <Text style={styles.infoRight}>111cm, 11kg</Text>
+                <Text style={styles.infoLeft}>Age</Text>
+                <Text style={styles.infoRight}>{profile?.age || "-"}</Text>
               </View>
 
               <View style={styles.separator} />
 
               <View style={styles.infoRowLine}>
-                <Text style={styles.infoLeft}>Skin</Text>
-                <Text style={styles.infoRight}>Normal</Text>
+                <Text style={styles.infoLeft}>Gender</Text>
+                <Text style={styles.infoRight}>{profile?.gender || "-"}</Text>
               </View>
 
               <View style={styles.separator} />
 
               <View style={styles.infoRowLine}>
                 <Text style={styles.infoLeft}>Allergies</Text>
-                <Text style={styles.infoRight}>{submission.allergies || "None listed"}</Text>
+                <Text style={styles.infoRight}>{profile?.allergies || "-"}</Text>
               </View>
 
               <View style={styles.separator} />
 
               <View style={styles.infoRowLine}>
-                <Text style={styles.infoLeft}>Conditions</Text>
-                <Text style={styles.infoRight}>{submission.diseases || "None listed"}</Text>
+                <Text style={styles.infoLeft}>Medications</Text>
+                <Text style={styles.infoRight}>{profile?.medications || "-"}</Text>
               </View>
-
-              <View style={styles.separator} />
-
-              <View style={styles.infoRowLine}>
-                <Text style={styles.infoLeft}>Meds</Text>
-                <Text style={styles.infoRight}>{submission.medications || "None listed"}</Text>
-              </View>
-
-            </View>
+            </>
           )}
         </Card>
 
         <Card style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Submitted Photo</Text>
-          <Image source={{ uri: submission.image }} style={styles.submittedImage} />
+
+          {submission?.photo ? (
+            <Image
+              source={{ uri: submission.photo }}
+              style={styles.submittedImage}
+            />
+          ) : (
+            <View style={[styles.submittedImage, styles.center]}>
+              <Text style={{ color: "#9CA3AF" }}>No image provided</Text>
+            </View>
+          )}
         </Card>
 
         <Card style={styles.sectionCard}>
@@ -136,65 +171,61 @@ export default function SubmissionDetail() {
 
           <View style={styles.infoRowLine}>
             <Text style={styles.infoLeft}>Place</Text>
-            <Text style={styles.infoRight}>{submission.place}</Text>
+            <Text style={styles.infoRight}>{submission?.place || "-"}</Text>
           </View>
 
           <View style={styles.separator} />
 
           <View style={styles.infoRowLine}>
             <Text style={styles.infoLeft}>Duration</Text>
-            <Text style={styles.infoRight}>{submission.duration}</Text>
+            <Text style={styles.infoRight}>
+              {submission?.duration_days || "-"}
+            </Text>
           </View>
 
           <View style={styles.separator} />
 
           <View style={styles.infoRowLine}>
             <Text style={styles.infoLeft}>Pain Level</Text>
-            <Text style={styles.infoRight}>{submission.painLevel}</Text>
+            <Text style={styles.infoRight}>
+              {submission?.pain_level ? `${submission.pain_level} / 5` : "-"}
+            </Text>
           </View>
 
           <View style={styles.separator} />
 
-          <View style={[styles.infoRowLine, { flexDirection: "column", alignItems: "flex-start" }]}>
+          <View style={{ paddingVertical: 10 }}>
             <Text style={styles.infoLeft}>Patient Comment</Text>
             <Text style={[styles.infoRight, { marginTop: 6, textAlign: "left" }]}>
-              {submission.patientComment}
+              {submission?.comment || "-"}
             </Text>
           </View>
         </Card>
 
-        <Card style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Image Analysis</Text>
-          <Text style={styles.analysisText}>{submission.aiAnalysis}</Text>
-        </Card>
-
-        {history.length > 0 && (
-          <Card style={[styles.sectionCard, { paddingBottom: 12 }]}>
-            <Text style={styles.sectionTitle}>Past Submissions</Text>
-
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingVertical: 6, gap: 14 }}>
-              {history.map((h) => (
-                <TouchableOpacity key={h.id} onPress={() => router.push(`/submissiondetail`)}>
-                  <View style={styles.historyCard}>
-                    <Image source={{ uri: h.image }} style={styles.historyImage} />
-                    <Text style={styles.historyDate}>{h.date}</Text>
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </Card>
-        )}
-
-        <TouchableOpacity style={styles.reportBtn}>
-          <Text style={styles.reportBtnText}>Write a Report</Text>
-        </TouchableOpacity>
+        <TouchableOpacity
+        style={[
+          styles.reportBtn,
+        ]}
+        onPress={() =>
+          router.push({
+            pathname: isReviewed
+              ? "/report/view/[id]"
+              : "/report/[id]",
+            params: { id: String(id) },
+          })
+        }
+      >
+        <Text style={styles.reportBtnText}>
+          {isReviewed ? "View Report" : "Write a Report"}
+        </Text>
+      </TouchableOpacity>
 
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-// styles
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F9FAFB" },
   content: { flex: 1 },
@@ -226,7 +257,6 @@ const styles = StyleSheet.create({
   },
 
   sectionCard: { paddingBottom: 20 },
-
   patientCard: { paddingTop: 14 },
 
   expandHeader: {
@@ -261,12 +291,6 @@ const styles = StyleSheet.create({
     color: "#2563EB",
   },
 
-  subInfoText: {
-    fontSize: 14,
-    color: "#6B7280",
-    marginTop: 2,
-  },
-
   dateRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -275,13 +299,6 @@ const styles = StyleSheet.create({
   },
 
   dateText: { fontSize: 13, color: "#6B7280" },
-
-  expandedBox: {
-    marginTop: 16,
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    paddingHorizontal: 4,
-  },
 
   infoRowLine: {
     flexDirection: "row",
@@ -324,39 +341,6 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
 
-  analysisText: {
-    fontSize: 14,
-    color: "#374151",
-    lineHeight: 20,
-  },
-
-  historyCard: {
-    width: 110,
-    backgroundColor: "white",
-    borderRadius: 12,
-    overflow: "hidden",
-    paddingBottom: 10,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-
-  historyImage: {
-    width: "100%",
-    height: 100,
-    backgroundColor: "#E5E7EB",
-  },
-
-  historyDate: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#111827",
-    textAlign: "center",
-    marginTop: 6,
-  },
-
   reportBtn: {
     backgroundColor: "#2563EB",
     paddingVertical: 16,
@@ -371,4 +355,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
   },
+  center: {
+  justifyContent: "center",
+  alignItems: "center",
+},
+
 });

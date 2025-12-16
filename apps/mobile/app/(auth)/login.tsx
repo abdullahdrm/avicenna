@@ -1,82 +1,166 @@
 import { useRouter } from 'expo-router';
 import { ArrowRight, Lock, Mail, User } from 'lucide-react-native';
 import React, { useState } from 'react';
-import { Image, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Image, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as SecureStore from 'expo-secure-store';
+
+
+const API_URL = 'http://172.20.10.2:8000/api'; 
 
 export default function LoginScreen() {
   const router = useRouter();
   const [isRegistering, setIsRegistering] = useState(false);
 
-  const handleAuth = () => {
-    router.replace('/questionnaire' as any);
-  };
-  const handleLogin = () => {
-    const isDoctor = false;
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
 
-    if (isDoctor) {
-      router.replace('/(doctor)' as any);
-    } else {
-      router.replace('/(tabs)' as any);
+  /* -------------------- LOGIN -------------------- */
+
+  const handleLogin = async () => {
+  if (!email || !password) {
+    Alert.alert('Error', 'Please enter username and password');
+    return;
+  }
+
+  try {
+    setLoading(true);
+
+    const response = await fetch(`${API_URL}/login/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        username: email,
+        password: password,
+      }),
+    });
+    console.log(response);
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      Alert.alert(
+        'Login failed',
+        data.detail || 'Invalid credentials'
+      );
+      return;
     }
+
+    await SecureStore.setItemAsync('access_token', data.access);
+    await SecureStore.setItemAsync('refresh_token', data.refresh);
+    await SecureStore.setItemAsync('user', JSON.stringify(data.user));
+
+    if (data.user.role === 'doctor') {
+      router.replace('/(doctor)/main');
+    } else {
+      router.replace('/questionnaire');
+    }
+
+  } catch (error) {
+    console.error('LOGIN ERROR:', error);
+    Alert.alert('Network error', 'Cannot reach server');
+  } finally {
+    setLoading(false);
+  }
 };
+
+
+
+  /* -------------------- UI -------------------- */
 
   return (
     <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.content}>
-        
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.content}
+      >
+        {/* HEADER */}
         <View style={styles.header}>
           <Image
-            source={require("../../assets/images/logo1.png")}
-           style={styles.logoBox}
+            source={require('../../assets/images/logo1.png')}
+            style={styles.logoBox}
           />
-          <Text style={styles.subtitle}>Your personal skin health companion</Text>
+          <Text style={styles.subtitle}>
+            Your personal skin health companion
+          </Text>
         </View>
 
+        {/* FORM */}
         <View style={styles.form}>
-          <Text style={styles.formTitle}>{isRegistering ? 'Create Account' : 'Welcome Back'}</Text>
+          <Text style={styles.formTitle}>
+            {isRegistering ? 'Create Account' : 'Welcome Back'}
+          </Text>
 
           {isRegistering && (
             <View style={styles.inputContainer}>
               <User size={20} color="#9CA3AF" style={styles.inputIcon} />
-              <TextInput placeholder="Full Name" style={styles.input} placeholderTextColor="#9CA3AF" />
+              <TextInput
+                placeholder="Full Name"
+                style={styles.input}
+                placeholderTextColor="#9CA3AF"
+              />
             </View>
           )}
 
           <View style={styles.inputContainer}>
             <Mail size={20} color="#9CA3AF" style={styles.inputIcon} />
-            <TextInput placeholder="Email Address" style={styles.input} keyboardType="email-address" placeholderTextColor="#9CA3AF" />
+            <TextInput
+              placeholder="Email / Username"
+              style={styles.input}
+              placeholderTextColor="#9CA3AF"
+              autoCapitalize="none"
+              value={email}
+              onChangeText={setEmail}
+            />
           </View>
 
           <View style={styles.inputContainer}>
             <Lock size={20} color="#9CA3AF" style={styles.inputIcon} />
-            <TextInput placeholder="Password" style={styles.input} secureTextEntry placeholderTextColor="#9CA3AF" />
+            <TextInput
+              placeholder="Password"
+              style={styles.input}
+              secureTextEntry
+              placeholderTextColor="#9CA3AF"
+              value={password}
+              onChangeText={setPassword}
+            />
           </View>
 
           {!isRegistering && (
-            <TouchableOpacity style={styles.button} onPress={handleLogin}>
-            <Text style={styles.buttonText}>{'Log In'}</Text>
-            <ArrowRight size={20} color="white" />
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.button}
+              onPress={handleLogin}
+              disabled={loading}
+            >
+              <Text style={styles.buttonText}>
+                {loading ? 'Logging in...' : 'Log In'}
+              </Text>
+              <ArrowRight size={20} color="white" />
+            </TouchableOpacity>
           )}
-          {isRegistering && (
-            <TouchableOpacity style={styles.button} onPress={handleAuth}>
-            <Text style={styles.buttonText}>{'Sign Up'}</Text>
-            <ArrowRight size={20} color="white" />
-          </TouchableOpacity>
-          )}
-          <TouchableOpacity onPress={() => setIsRegistering(!isRegistering)} style={styles.switchBtn}>
+
+          <TouchableOpacity
+            onPress={() => setIsRegistering(!isRegistering)}
+            style={styles.switchBtn}
+          >
             <Text style={styles.switchText}>
-              {isRegistering ? 'Already have an account? ' : "Don't have an account? "}
-              <Text style={styles.switchTextBold}>{isRegistering ? 'Log In' : 'Sign Up'}</Text>
+              {isRegistering
+                ? 'Already have an account? '
+                : "Don't have an account? "}
+              <Text style={styles.switchTextBold}>
+                {isRegistering ? 'Log In' : 'Sign Up'}
+              </Text>
             </Text>
           </TouchableOpacity>
         </View>
-
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F9FAFB' },
