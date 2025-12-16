@@ -1,8 +1,18 @@
 import { useRouter } from 'expo-router';
 import { Activity, Bell, Calendar, FileText, MessageSquare, Upload } from 'lucide-react-native';
-import React from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+interface SkinAnalysis {
+  id: number;
+  image: string | null; 
+  body_part: string;
+  status: 'Analyzed' | 'Under Review';
+  prediction: string | null;
+  confidence: number;
+  formatted_date: string;
+}
 
 const Card = ({ children, style }: any) => (
   <View style={[styles.card, style]}>
@@ -39,18 +49,48 @@ const StatCard = ({ value, label }: any) => (
   </View>
 );
 
-
 export default function HomeScreen() {
   const router = useRouter();
+
+  const [reports, setReports] = useState<SkinAnalysis[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const BASE_URL = 'http://10.149.24.43:8000';
+  const API_URL = `${BASE_URL}/api/skin-analysis/`;
+
+  const fetchReports = async () => {
+    setLoading(true);
+    try {
+      console.log(`Fetching from: ${API_URL}`); 
+      const response = await fetch(API_URL);
+      
+      if (!response.ok) {
+        throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+      }
+      
+      const json: SkinAnalysis[] = await response.json();
+      setReports(json);
+    } catch (error) {
+      console.error("Failed to fetch data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchReports();
+  }, []);
+
+
+  const getImageUrl = (path: string | null) => {
+    if (!path) return null;
+    if (path.startsWith('http')) return path; 
+    return `${BASE_URL}${path}`;
+  };
 
   const notifications = [
     { id: 1, type: 'report', message: 'Analysis report ready', time: '2h ago', unread: true },
     { id: 2, type: 'doctor', message: 'Dr. replied', time: '1d ago', unread: true },
-  ];
-
-  const recentSubmissions = [
-    { id: 1, date: 'Nov 15', area: 'Forehead', status: 'Analyzed' },
-    { id: 2, date: 'Nov 10', area: 'Left Cheek', status: 'Under Review' },
   ];
 
   return (
@@ -69,8 +109,8 @@ export default function HomeScreen() {
         </View>
 
         <View style={styles.statsRow}>
-          <StatCard value="12" label="Uploads" />
-          <StatCard value="8" label="Reports" />
+          <StatCard value={reports.length.toString()} label="Uploads" />
+          <StatCard value={reports.filter(r => r.status === 'Analyzed').length.toString()} label="Analyzed" />
           <StatCard value="45" label="Days" />
         </View>
 
@@ -121,31 +161,55 @@ export default function HomeScreen() {
 
         <View style={styles.section}>
            <View style={styles.sectionHeader}>
-             <Text style={styles.sectionTitle}>Recent Submissions</Text>
-             <TouchableOpacity onPress={() => router.push('/reports')}>
-                <Text style={styles.linkText}>View All</Text>
+             <Text style={styles.sectionTitle}>Recent History</Text>
+             <TouchableOpacity onPress={fetchReports}>
+                <Text style={styles.linkText}>Refresh</Text>
              </TouchableOpacity>
            </View>
            
-           {recentSubmissions.map(sub => (
-             <Card key={sub.id} style={{ marginBottom: 10, flexDirection: 'row', alignItems: 'center', padding: 12 }}>
-               <View style={styles.imagePlaceholder}>
-                  <FileText size={20} color="#9CA3AF"/>
+           {loading ? (
+             <ActivityIndicator size="large" color="#2563EB" />
+           ) : (
+             reports.length === 0 ? (
+               <View style={{ padding: 20, alignItems: 'center' }}>
+                 <Text style={{color: '#6B7280', textAlign: 'center'}}>
+                    No reports found.{'\n'}
+                    Go to admin to add a report!
+                 </Text>
                </View>
-               <View style={{ flex: 1, marginLeft: 12 }}>
-                 <Text style={styles.itemTitle}>{sub.area}</Text>
-                 <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
-                   <Calendar size={12} color="#6B7280" />
-                   <Text style={styles.itemDate}>{sub.date}</Text>
-                 </View>
-               </View>
-               <Badge 
-                 text={sub.status} 
-                 color={sub.status === 'Analyzed' ? '#DCFCE7' : '#F3F4F6'}
-                 textColor={sub.status === 'Analyzed' ? '#166534' : '#374151'}
-               />
-             </Card>
-           ))}
+             ) : (
+               reports.map(report => (
+                 <Card key={report.id} style={{ marginBottom: 10, flexDirection: 'row', alignItems: 'center', padding: 12 }}>
+                   
+                   <View style={styles.imagePlaceholder}>
+                      {report.image ? (
+                        <Image 
+                          source={{ uri: getImageUrl(report.image) }} 
+                          style={{ width: 48, height: 48, borderRadius: 8 }}
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        <FileText size={20} color="#9CA3AF"/>
+                      )}
+                   </View>
+
+                   <View style={{ flex: 1, marginLeft: 12 }}>
+                     <Text style={styles.itemTitle}>{report.body_part}</Text>
+                     <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                       <Calendar size={12} color="#6B7280" />
+                       <Text style={styles.itemDate}>{report.formatted_date}</Text>
+                     </View>
+                   </View>
+
+                   <Badge 
+                     text={report.status} 
+                     color={report.status === 'Analyzed' ? '#DCFCE7' : '#F3F4F6'}
+                     textColor={report.status === 'Analyzed' ? '#166534' : '#374151'}
+                   />
+                 </Card>
+               ))
+             )
+           )}
         </View>
 
       </ScrollView>
@@ -339,6 +403,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden' 
   },
   itemTitle: {
     fontSize: 16,
