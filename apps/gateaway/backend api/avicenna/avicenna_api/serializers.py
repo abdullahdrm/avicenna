@@ -235,4 +235,14 @@ class SkinAnalysisSerializer(serializers.ModelSerializer):
 
     def get_formatted_date(self, obj):
         return obj.created_at.strftime('%b %d')
+    
+class ArticleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Article
+        fields = ['id', 'title', 'category', 'read_time', 'content', 'image']
+
+class DailyTipSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DailyTip
+        fields = ['id', 'content']
 

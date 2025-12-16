@@ -205,4 +205,32 @@ class SkinAnalysis(models.Model):
 
     def __str__(self):
         return f"{self.body_part} - {self.created_at.strftime('%Y-%m-%d')}"
+    
+    
+class Article(models.Model):
+    CATEGORY_CHOICES = [
+        ('Acne', 'Acne'),
+        ('Anti-Aging', 'Anti-Aging'),
+        ('Routine', 'Routine'),
+        ('Dry Skin', 'Dry Skin'),
+        ('Sun', 'Sun Care'),
+        ('Basics', 'Basics'),
+    ]
+
+    title = models.CharField(max_length=200)
+    category = models.CharField(max_length=50, choices=CATEGORY_CHOICES)
+    read_time = models.CharField(max_length=20, help_text="e.g., '3 min read'")
+    content = models.TextField()
+    image = models.ImageField(upload_to='articles/', blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.title
+
+class DailyTip(models.Model):
+    content = models.TextField()
+    is_active = models.BooleanField(default=True)
+
+    def __str__(self):
+        return f"Tip: {self.content[:30]}..."
 

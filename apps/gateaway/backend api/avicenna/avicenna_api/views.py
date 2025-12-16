@@ -289,3 +289,27 @@ class SkinAnalysisViewSet(viewsets.ModelViewSet):
         instance.status = 'review'
         instance.save()
         return Response({"status": "completed"})
+    
+class ArticleViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Article.objects.all().order_by('-created_at')
+    serializer_class = ArticleSerializer
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        category = self.request.query_params.get('category')
+        if category and category != 'All':
+            queryset = queryset.filter(category__iexact=category)
+        return queryset
+
+class DailyTipViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = DailyTip.objects.filter(is_active=True)
+    serializer_class = DailyTipSerializer
+
+    @action(detail=False, methods=['get'])
+    def random(self, request):
+        tips = list(self.get_queryset())
+        if tips:
+            random_tip = random.choice(tips)
+            serializer = self.get_serializer(random_tip)
+            return Response(serializer.data)
+        return Response({"content": "Stay hydrated!"})
