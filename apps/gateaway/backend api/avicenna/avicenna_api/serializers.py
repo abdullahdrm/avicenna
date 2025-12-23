@@ -3,6 +3,9 @@ from .models import *
 from django.contrib.auth import get_user_model
 User = get_user_model()
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from rest_framework import serializers
+from django.db.models import Count
+from .models import DoctorProfile, Submission
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
@@ -25,7 +28,10 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         data['user'] = {
             'id': self.user.id,
             'username': self.user.username,
+            'email': self.user.email,
             'role': self.user.role,
+            'first_name': self.user.first_name, # <--- IMPORTANT
+            'last_name': self.user.last_name,   # <--- IMPORTANT
         }
 
         return data
@@ -34,12 +40,14 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['username', 'email']
+        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'date_joined']
 
 
 # DOCTOR
 
 class PatientProfileSerializer(serializers.ModelSerializer):
+    date_joined = serializers.DateTimeField(source='patient.date_joined', read_only=True)
+
     class Meta:
         model = PatientProfile
         fields = [
@@ -48,14 +56,14 @@ class PatientProfileSerializer(serializers.ModelSerializer):
             "skin_type",
             "allergies",
             "medications",
+            "medical_conditions",
             "height",
             "weight",
+            "date_joined",
         ]
-
-
+        
 class PatientSerializer(serializers.ModelSerializer):
     profile = serializers.SerializerMethodField()
-
     class Meta:
         model = User
         fields = [
@@ -85,27 +93,7 @@ class SubmissionSerializer(serializers.ModelSerializer):
         ]
 
 
-class SubmissionDetailSerializer(serializers.ModelSerializer):
-    patient = PatientSerializer(read_only=True)
 
-    class Meta:
-        model = Submission
-        fields = [
-            "id",
-            "patient",
-            "photo",
-            "place",
-            "duration_days",
-            "pain_level",
-            "comment",
-            "created_at",
-            "status"
-        ]
-
-
-from rest_framework import serializers
-from django.db.models import Count
-from .models import DoctorProfile, Submission
 
 
 class DoctorProfileSerializer(serializers.ModelSerializer):
@@ -194,7 +182,12 @@ class DoctorDashboardSerializer(serializers.Serializer):
 class DoctorPreferencesUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = DoctorProfile
-        fields = ('city', 'hospital')
+        fields = (
+            'city', 
+            'hospital', 
+            'allowed_days', 
+            'max_submissions_per_day'
+        )
 
 
 class MedicationSerializer(serializers.ModelSerializer):
@@ -231,10 +224,36 @@ class SkinAnalysisSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = SkinAnalysis
-        fields = ['id', 'image', 'body_part', 'prediction', 'confidence', 'status', 'created_at', 'formatted_date']
+        fields = [
+            'id', 
+            'image', 
+            'body_part', 
+            'prediction', 
+            'confidence', 
+            'status', 
+            'pain_level', 
+            'duration',   
+            'comments',   
+            'answers',    
+            'created_at', 
+            'formatted_date'
+        ]
 
     def get_formatted_date(self, obj):
-        return obj.created_at.strftime('%b %d')
+        return obj.created_at.strftime('%b %d, %H:%M')
+    
+class SubmissionDetailSerializer(serializers.ModelSerializer):
+    patient = PatientSerializer(read_only=True)
+    skin_analysis = SkinAnalysisSerializer(read_only=True) 
+    class Meta:
+        model = Submission
+        fields = [
+            "id",
+            "patient",
+            "skin_analysis", 
+            "status",
+            "created_at",
+        ]
     
 class ArticleSerializer(serializers.ModelSerializer):
     class Meta:
@@ -246,3 +265,61 @@ class DailyTipSerializer(serializers.ModelSerializer):
         model = DailyTip
         fields = ['id', 'content']
 
+class UserRegistrationSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True)
+
+    class Meta:
+        model = User
+        fields = ('email', 'password', 'first_name', 'last_name')
+
+    def create(self, validated_data):
+        email = validated_data.get('email')
+        validated_data['username'] = email
+        validated_data['role'] = User.ROLE_PATIENT
+        
+        password = validated_data.pop('password')
+        user = User.objects.create(**validated_data)
+        user.set_password(password)
+        user.save()
+        
+        PatientProfile.objects.create(patient=user)
+        
+        return user
+    
+class PatientReportSerializer(serializers.ModelSerializer):
+    doctor_name = serializers.SerializerMethodField()
+    diagnosis = serializers.CharField(source='report.diagnosis', default="No diagnosis yet")
+    doctor_comment = serializers.CharField(source='report.comment', default="")
+    medications = serializers.SerializerMethodField()
+    visit_required = serializers.BooleanField(source='report.hospital_visit', default=False)
+    date = serializers.SerializerMethodField()
+
+    place = serializers.CharField(source='skin_analysis.body_part', default="Unknown Area", read_only=True)
+    status = serializers.CharField()
+    class Meta:
+        model = Submission
+        fields = [
+            'id', 
+            'status',
+            'place',        
+            'doctor_name', 
+            'diagnosis', 
+            'doctor_comment',
+            'medications',
+            'visit_required',
+            'date'
+        ]
+
+    def get_doctor_name(self, obj):
+        return f"Dr. {obj.doctor.last_name}" if obj.doctor else "Unknown Doctor"
+
+    def get_medications(self, obj):
+        if hasattr(obj, 'report'):
+            return [
+                f"{m.name} ({m.frequency})" 
+                for m in obj.report.medications.all()
+            ]
+        return []
+
+    def get_date(self, obj):
+        return obj.updated_at.strftime('%b %d, %Y')
