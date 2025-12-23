@@ -30,9 +30,16 @@ class SkinType(str, Enum):
 
 class ProblemType(str, Enum):
     acne = "acne"
-    hyperpigmentation = "hyperpigmentation"
+    hyperpigmentation = "hyperpigmentation" 
     wrinkle = "wrinkle"
     redness = "redness"
+    eczema = "eczema"
+    psoriasis = "psoriasis"
+    dermatitis = "dermatitis"
+    melanoma = "melanoma"
+    fungal = "fungal"
+    bacterial = "bacterial"
+    viral = "viral"
     other = "other"
 
 
@@ -69,7 +76,16 @@ class AnalysisRequest(BaseModel):
 class ValidationResult(BaseModel):
     is_valid: bool
     reasons: List[str] = Field(default_factory=list)
-    details: Dict[str, Any] = Field(default_factory=dict)
+    
+    def model_dump(self, **kwargs):
+        return {
+            "is_valid": self.is_valid,
+            "reasons": self.reasons
+        }
+    
+    def model_dump_json(self, **kwargs):
+        import json
+        return json.dumps(self.model_dump(**kwargs))
 
 
 class Metrics(BaseModel):
@@ -98,5 +114,26 @@ class AnalysisResult(BaseModel):
     comparison: Optional[Comparison] = None
 
     processed_at: datetime = Field(default_factory=datetime.utcnow)
-    processing_time_ms: Optional[int] = None
-    extra: Dict[str, Any] = Field(default_factory=dict)
+    original_image_path: Optional[str] = None
+    processed_image_path: Optional[str] = None
+    
+    def model_dump(self, **kwargs):
+        result = {
+            "request_id": self.request_id,
+            "case_id": self.case_id,
+            "image_id": self.image_id,
+            "is_valid": self.is_valid,
+            "validation": self.validation.model_dump(),
+            "metrics": self.metrics.model_dump() if self.metrics else None,
+            "comparison": self.comparison.model_dump() if self.comparison else None,
+            "processed_at": self.processed_at.isoformat(),
+        }
+        if self.original_image_path:
+            result["original_image_path"] = self.original_image_path
+        if self.processed_image_path:
+            result["processed_image_path"] = self.processed_image_path
+        return result
+    
+    def model_dump_json(self, **kwargs):
+        import json
+        return json.dumps(self.model_dump(**kwargs))

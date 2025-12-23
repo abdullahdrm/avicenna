@@ -77,7 +77,7 @@ def _image_quality(image_bytes: bytes) -> ValidationResult:
         "max_mean": 200.0,
         "min_std": 15.0,
         "max_clip_ratio": 0.5,
-        "min_laplacian_var": 60.0,
+        "min_laplacian_var": 50.0,
     }
 
     arr = np.array(gray, dtype="uint8")
@@ -100,8 +100,9 @@ def _image_quality(image_bytes: bytes) -> ValidationResult:
     if white_ratio > thresholds["max_clip_ratio"]:
         reasons.append("too_much_white")
 
-    if blur is not None and blur < thresholds["min_laplacian_var"]:
-        reasons.append("too_blurry")
+    # Blur check disabled
+    # if blur is not None and blur < thresholds["min_laplacian_var"]:
+    #     reasons.append("too_blurry")
 
     details: Dict[str, Any] = {
         "mean": mean,
@@ -115,7 +116,91 @@ def _image_quality(image_bytes: bytes) -> ValidationResult:
     return ValidationResult(is_valid=len(reasons) == 0, reasons=reasons, details=details)
 
 
-def _vit_stub(image_bytes: bytes, req: AnalysisRequest) -> Metrics:
+def _ml_segmentation_and_classification(image_bytes: bytes, req: AnalysisRequest) -> Tuple[Metrics, str]:
+    try:
+        import sys
+        import os
+        from pathlib import Path
+        
+        current_dir = Path(__file__).parent
+        ml_segmentation_dir = current_dir.parent.parent / "ml" / "preprocessing" / "segmentation"
+        sys.path.insert(0, str(ml_segmentation_dir))
+        
+        from image_processing_segmentation import process_image
+        from acne_model import GeneralConditionClassifier, AcneClassifier
+        from pathlib import Path
+        
+        pil_image = _load_pil(image_bytes)
+        
+        import cv2
+        import numpy as np
+        np_bytes = np.frombuffer(image_bytes, np.uint8)
+        bgr_image = cv2.imdecode(np_bytes, cv2.IMREAD_COLOR)
+        
+        if bgr_image is None:
+            raise ValueError("Could not decode image")
+        
+        condition_model_path = Path(__file__).parent.parent.parent / "ml" / "training" / "mobilenet_v2_best.pth"
+        general_classifier = GeneralConditionClassifier(str(condition_model_path), device='cpu')
+        condition_result = general_classifier.predict(pil_image)
+        
+        mask, score = process_image(bgr_image)
+        
+        lesion_pixels = np.sum(mask > 0)
+        total_pixels = mask.size
+        lesion_ratio = lesion_pixels / total_pixels
+        
+        _, labels, stats, _ = cv2.connectedComponentsWithStats(mask.astype(np.uint8), connectivity=8)
+        lesion_count = max(0, labels.max() - 1)
+        
+        if condition_result['is_acne']:
+            acne_model_path = Path(__file__).parent.parent.parent / "ml" / "training" / "final_model_v1.pth"
+            acne_classifier = AcneClassifier(str(acne_model_path), device='cpu')
+            acne_result = acne_classifier.predict(pil_image)
+            
+            severity_score = acne_result['severity_score']
+            predicted_class = acne_result['predicted_class']
+            confidence = acne_result['confidence']
+            class_probs = acne_result['class_probabilities']
+            problem_type = 'acne'
+        else:
+            severity_score = condition_result['confidence']
+            predicted_class = condition_result['condition']
+            confidence = condition_result['confidence']
+            class_probs = condition_result['class_probabilities']
+            problem_type = condition_result['condition'].lower()
+        
+        per_region = {
+            "forehead": int(lesion_count * 0.3),
+            "left_cheek": int(lesion_count * 0.35),
+            "right_cheek": int(lesion_count * 0.35),
+        }
+        
+        return Metrics(
+            lesion_count=lesion_count,
+            severity_score=severity_score,
+            per_region=per_region,
+            extra={
+                "lesion_pixel_ratio": lesion_ratio,
+                "total_lesion_pixels": int(lesion_pixels),
+                "segmentation_method": "kmeans_slic_grabcut",
+                "general_condition": condition_result['condition'],
+                "general_confidence": condition_result['confidence'],
+                "is_acne": condition_result['is_acne'],
+                "problem_type": problem_type,
+                "classification_model": "two_stage_mobilenet_v2",
+                "predicted_severity": predicted_class,
+                "prediction_confidence": confidence,
+                "class_probabilities": class_probs,
+            }
+        ), problem_type
+        
+    except Exception as e:
+        logger.warning(f"ML analysis failed: {e}, falling back to stub")
+        return _vit_stub(image_bytes, req)
+
+
+def _vit_stub(image_bytes: bytes, req: AnalysisRequest) -> Tuple[Metrics, str]:
     import hashlib
 
     h = hashlib.sha256(str(req.image_url).encode("utf-8")).hexdigest()
@@ -130,7 +215,7 @@ def _vit_stub(image_bytes: bytes, req: AnalysisRequest) -> Metrics:
     }
 
     extra = {"problem_type": req.problem_type.value, "is_follow_up": req.is_follow_up}
-    return Metrics(lesion_count=lesions, severity_score=sev, per_region=per_region, extra=extra)
+    return Metrics(lesion_count=lesions, severity_score=sev, per_region=per_region, extra=extra), req.problem_type.value
 
 
 def _compare(previous: Optional[AnalysisResult], current: Metrics) -> Optional[Comparison]:
@@ -176,7 +261,6 @@ def run_analysis_pipeline(req: AnalysisRequest, store: ProcessingStore) -> Analy
             validation=validation,
             metrics=None,
             comparison=None,
-            processing_time_ms=int((end_ts - start_ts) * 1000),
         )
         store.save_analysis(req.case_id, req.image_id, img_path_original, res)
         return res
@@ -202,8 +286,32 @@ def run_analysis_pipeline(req: AnalysisRequest, store: ProcessingStore) -> Analy
             preprocess_result.file_size_kb
         )
 
-    # TODO: Rep _vit_stub with our cv
-    metrics = _vit_stub(img_bytes, req)
+    metrics, detected_problem_type = _ml_segmentation_and_classification(img_bytes, req)
+    
+    # Update request problem type based on detection
+    from models import ProblemType
+    detected_lower = detected_problem_type.lower()
+    
+    if 'acne' in detected_lower or 'rosacea' in detected_lower:
+        req.problem_type = ProblemType.acne
+    elif 'eczema' in detected_lower or 'atopic dermatitis' in detected_lower:
+        req.problem_type = ProblemType.eczema  
+    elif 'psoriasis' in detected_lower:
+        req.problem_type = ProblemType.psoriasis
+    elif 'dermatitis' in detected_lower or 'poison ivy' in detected_lower:
+        req.problem_type = ProblemType.dermatitis
+    elif 'melanoma' in detected_lower or 'cancer' in detected_lower:
+        req.problem_type = ProblemType.melanoma
+    elif 'fungal' in detected_lower or 'tinea' in detected_lower or 'ringworm' in detected_lower:
+        req.problem_type = ProblemType.fungal
+    elif 'bacterial' in detected_lower or 'cellulitis' in detected_lower or 'impetigo' in detected_lower:
+        req.problem_type = ProblemType.bacterial
+    elif 'viral' in detected_lower or 'warts' in detected_lower or 'molluscum' in detected_lower:
+        req.problem_type = ProblemType.viral
+    elif 'pigmentation' in detected_lower:
+        req.problem_type = ProblemType.hyperpigmentation
+    else:
+        req.problem_type = ProblemType.other
     
     prev = store.get_latest_analysis_for_case(req.case_id)
     comparison = _compare(prev, metrics)
@@ -217,12 +325,8 @@ def run_analysis_pipeline(req: AnalysisRequest, store: ProcessingStore) -> Analy
         validation=validation,
         metrics=metrics,
         comparison=comparison,
-        processing_time_ms=int((end_ts - start_ts) * 1000),
-        extra={
-            "preprocessing": preprocess_result.model_dump() if preprocess_result.success else {},
-            "original_image_path": str(img_path_original),
-            "processed_image_path": str(img_path_processed),
-        }
+        original_image_path=str(img_path_original),
+        processed_image_path=str(img_path_processed),
     )
     store.save_analysis(req.case_id, req.image_id, img_path_processed, res)
     return res

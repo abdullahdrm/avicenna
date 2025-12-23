@@ -1,0 +1,113 @@
+image: python:3.11-slim
+
+stages:
+  - build
+  - test
+  - deploy
+
+cache:
+  key: ${CI_COMMIT_REF_SLUG}
+  paths:
+    #- 
+
+variables:
+  # Sağdaki variable değerleri sunucuda Settings/CI-CD/Variables tanımlanır.
+  AVICENNA_PRE_PROC_SEG_TEMP_PORT: "$AVICENNA_PRE_PROC_SEG_TEMP_PORT"
+  AVICENNA_PRE_PROC_SEG_ORIGINAL_PORT: "$AVICENNA_PRE_PROC_SEG_ORIGINAL_PORT"
+  AVICENNA_PRE_PROC_SEG_IMAGE_NAME: "$AVICENNA_PRE_PROC_SEG_IMAGE_NAME"
+  AVICENNA_PRE_PROC_SEG_CONTAINER_NAME: "$AVICENNA_PRE_PROC_SEG_CONTAINER_NAME"
+
+before_script:
+  - echo "Loading environment variables..."
+  - export AVICENNA_PRE_PROC_SEG_TEMP_CONTAINER_NAME="temp_$AVICENNA_PRE_PROC_SEG_CONTAINER_NAME"
+
+build_avicenna_pre_proc_seg_app:
+  stage: build
+  script:
+    - echo "Go to the ml directory..."
+    - cd ml
+
+    - echo "Go to the preprocessing directory..."
+    - cd preprocessing
+
+    - echo "Go to the segmentation directory..."
+    - cd segmentation
+
+  rules:
+    - if: $CI_COMMIT_BRANCH == "ml_preprocessing" #|| $CI_COMMIT_BRANCH == "main"
+      changes:
+        - ml/preprocessing/segmentation/**/*
+
+test_avicenna_pre_proc_seg_app:
+  stage: test
+  script:
+    - echo "Running Avicenna Preprocessing Segmentation tests..."
+
+  needs:
+    - build_avicenna_pre_proc_seg_app
+  rules:
+    - if: $CI_COMMIT_BRANCH == "ml_preprocessing" #|| $CI_COMMIT_BRANCH == "main"
+      changes:
+        - ml/preprocessing/segmentation/**/*
+
+
+deploy_avicenna_pre_proc_seg_app:
+  stage: deploy
+  script:
+    - echo "Building and deploying the Docker container..."
+
+    - echo "Cleaning up temporary containers..."
+    - docker stop $AVICENNA_PRE_PROC_SEG_TEMP_CONTAINER_NAME || true
+    - docker rm $AVICENNA_PRE_PROC_SEG_TEMP_CONTAINER_NAME || true
+
+    - echo "Ensuring Docker network '$NETWORK_NAME' exists..."
+    - if ! docker network ls --format '{{.Name}}' | grep -wq "$NETWORK_NAME"; then
+        echo "Network $NETWORK_NAME not found. Creating...";
+        docker network create "$NETWORK_NAME";
+      else
+        echo "Network $NETWORK_NAME already exists.";
+      fi
+
+    - echo "Building the new Docker image with API URLs..."
+    - docker build -t $AVICENNA_PRE_PROC_SEG_IMAGE_NAME -f ml/preprocessing/segmentation/Dockerfile ml/preprocessing/segmentation
+
+    - echo "Running the new image as a temporary container..."
+    - docker run -d --name $AVICENNA_PRE_PROC_SEG_TEMP_CONTAINER_NAME --network=$NETWORK_NAME -p $AVICENNA_PRE_PROC_SEG_TEMP_PORT:80 $AVICENNA_PRE_PROC_SEG_IMAGE_NAME
+
+    - echo "Waiting for new container to initialize..."
+    #- for i in {1..10}; do
+    #    if curl -f http://localhost:$AVICENNA_PRE_PROC_SEG_TEMP_PORT/ || curl -f http://localhost:$AVICENNA_PRE_PROC_SEG_TEMP_PORT/index.html; then
+    #      echo "Health check passed!";
+    #      echo "New version is healthy, switching..."
+    #      i=10;  
+    #      break;
+    #    fi;
+    #    echo "Retrying health check ($i/10)...";
+    #    sleep 10;
+    #  done
+    
+    - echo "Stopping and removing the old container..."
+    - if docker ps -aq -f name=$AVICENNA_PRE_PROC_SEG_CONTAINER_NAME; then
+        docker stop $AVICENNA_PRE_PROC_SEG_CONTAINER_NAME || true;
+        docker rm $AVICENNA_PRE_PROC_SEG_CONTAINER_NAME || true;
+      else
+        echo "No existing main container found, skipping removal.";
+      fi
+
+    - echo "Starting the new container as $AVICENNA_PRE_PROC_SEG_CONTAINER_NAME..."
+    - docker run -d --name $AVICENNA_PRE_PROC_SEG_CONTAINER_NAME --network=$NETWORK_NAME -p $AVICENNA_PRE_PROC_SEG_ORIGINAL_PORT:80 $AVICENNA_PRE_PROC_SEG_IMAGE_NAME
+    
+    - docker stop $AVICENNA_PRE_PROC_SEG_TEMP_CONTAINER_NAME || true
+    - docker rm $AVICENNA_PRE_PROC_SEG_TEMP_CONTAINER_NAME || true
+
+    - echo "Successfully switched to the new build on port $AVICENNA_PRE_PROC_SEG_ORIGINAL_PORT."
+
+  after_script:
+    - echo "Cleaning up old Docker images..."
+    - docker image prune -f
+  needs:
+    - test_avicenna_pre_proc_seg_app
+  rules:
+    - if: $CI_COMMIT_BRANCH == "ml_preprocessing" #|| $CI_COMMIT_BRANCH == "main"
+      changes:
+        - ml/preprocessing/segmentation/**/*
