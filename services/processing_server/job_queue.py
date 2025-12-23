@@ -9,9 +9,9 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Dict, List, Optional
 
-from .models import AnalysisRequest, AnalysisResult
-from .pipeline import run_analysis_pipeline
-from .storage import ProcessingStore
+from models import AnalysisRequest, AnalysisResult
+from pipeline import run_analysis_pipeline
+from storage import ProcessingStore
 
 logger = logging.getLogger(__name__)
 
@@ -141,18 +141,20 @@ class InMemoryJobQueue:
 
             job = self.get_job(job_id)
             if job is None:
+                logger.warning("job_id=%s not found", job_id)
                 self._queue.task_done()
                 continue
 
             with self._lock:
                 if job.status == JobStatus.CANCELED:
+                    logger.info("job_id=%s canceled, skipping", job_id)
                     self._queue.task_done()
                     continue
                 job.status = JobStatus.RUNNING
                 job.updated_at = time.time()
                 job.attempts += 1
 
-            logger.info("worker %s job_id=%s start", threading.current_thread().name, job_id)
+            logger.info("worker %s processing job_id=%s", threading.current_thread().name, job_id)
 
             try:
                 result = run_analysis_pipeline(job.request, store=self.store)
@@ -162,15 +164,9 @@ class InMemoryJobQueue:
                     job.error = None
                     job.error_trace = None
                     job.updated_at = time.time()
-                logger.info(
-                    "worker %s job_id=%s done status=%s attempts=%d",
-                    threading.current_thread().name,
-                    job_id,
-                    job.status.value,
-                    job.attempts,
-                )
+                logger.info("worker %s job_id=%s completed", threading.current_thread().name, job_id)
             except Exception as exc:
-                logger.exception("job failed job_id=%s", job_id)
+                logger.exception("job failed job_id=%s attempt=%d", job_id, job.attempts)
                 tb = traceback.format_exc()
                 with self._lock:
                     job.error = str(exc)
@@ -178,8 +174,12 @@ class InMemoryJobQueue:
                     job.updated_at = time.time()
                     if job.attempts >= job.max_attempts:
                         job.status = JobStatus.FAILED
+                        logger.error("job_id=%s failed permanently after %d attempts", job_id, job.attempts)
                     else:
                         job.status = JobStatus.QUEUED
                         self._queue.put(job_id)
+                        logger.info("job_id=%s requeued for retry", job_id)
             finally:
                 self._queue.task_done()
+        
+        logger.info("%s stopped", threading.current_thread().name)

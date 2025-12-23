@@ -15,14 +15,15 @@ except Exception:
 
 import numpy as np
 
-from .models import (
+from models import (
     AnalysisRequest,
     AnalysisResult,
     Comparison,
     Metrics,
     ValidationResult,
 )
-from .storage import ProcessingStore
+from storage import ProcessingStore
+from image_processing import create_dermnet_processor, ProcessingConfig
 
 logger = logging.getLogger(__name__)
 
@@ -156,10 +157,13 @@ def run_analysis_pipeline(req: AnalysisRequest, store: ProcessingStore) -> Analy
     start_ts = time.perf_counter()
 
     img_bytes = _download_image(str(req.image_url))
+    logger.debug("Downloaded image: %d bytes", len(img_bytes))
 
-    img_path = store.build_image_path(req.case_id, req.image_id, ext=".jpg")
-    img_path.write_bytes(img_bytes)
+    img_path_original = store.build_image_path(req.case_id, f"{req.image_id}_original", ext=".jpg")
+    img_path_original.write_bytes(img_bytes)
+    logger.debug("Saved original image: %s", img_path_original)
 
+    # image quality check - similar thing also in backend but it fails sometimes and server can be used by others too.
     validation = _image_quality(img_bytes)
 
     if not validation.is_valid:
@@ -174,10 +178,33 @@ def run_analysis_pipeline(req: AnalysisRequest, store: ProcessingStore) -> Analy
             comparison=None,
             processing_time_ms=int((end_ts - start_ts) * 1000),
         )
-        store.save_analysis(req.case_id, req.image_id, img_path, res)
+        store.save_analysis(req.case_id, req.image_id, img_path_original, res)
         return res
 
+    # Preprocess image for CV model
+    processor = create_dermnet_processor()
+    img_path_processed = store.build_image_path(req.case_id, req.image_id, ext=".jpg")
+    
+    logger.info("Preprocessing image to DermNet format...")
+    preprocess_result = processor.process_from_bytes(img_bytes, img_path_processed)
+    
+    if not preprocess_result.success:
+        logger.error("Image preprocessing failed: %s", preprocess_result.warnings)
+        # fail original
+        img_path_processed = img_path_original
+    else:
+        logger.info(
+            "Preprocessing complete: %dx%d -> %dx%d (%.1fKB)",
+            preprocess_result.original_size[0],
+            preprocess_result.original_size[1],
+            preprocess_result.processed_size[0],
+            preprocess_result.processed_size[1],
+            preprocess_result.file_size_kb
+        )
+
+    # TODO: Rep _vit_stub with our cv
     metrics = _vit_stub(img_bytes, req)
+    
     prev = store.get_latest_analysis_for_case(req.case_id)
     comparison = _compare(prev, metrics)
 
@@ -191,6 +218,11 @@ def run_analysis_pipeline(req: AnalysisRequest, store: ProcessingStore) -> Analy
         metrics=metrics,
         comparison=comparison,
         processing_time_ms=int((end_ts - start_ts) * 1000),
+        extra={
+            "preprocessing": preprocess_result.model_dump() if preprocess_result.success else {},
+            "original_image_path": str(img_path_original),
+            "processed_image_path": str(img_path_processed),
+        }
     )
-    store.save_analysis(req.case_id, req.image_id, img_path, res)
+    store.save_analysis(req.case_id, req.image_id, img_path_processed, res)
     return res

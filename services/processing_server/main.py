@@ -8,10 +8,10 @@ from typing import Any, Dict, List, Optional
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-from .job_queue import InMemoryJobQueue
-from .models import AnalysisRequest, AnalysisResult
-from .storage import ProcessingStore
-from .pipeline import run_analysis_pipeline
+from job_queue import InMemoryJobQueue
+from models import AnalysisRequest, AnalysisResult
+from storage import ProcessingStore
+from pipeline import run_analysis_pipeline
 
 logging.basicConfig(
     level=logging.INFO,
@@ -27,6 +27,14 @@ store = ProcessingStore(db_path=DB_PATH, image_root=IMAGE_ROOT)
 job_queue = InMemoryJobQueue(store=store, num_workers=NUM_WORKERS)
 
 app = FastAPI(title="Avicenna Processing Server", version="0.1.0")
+
+
+@app.on_event("shutdown")
+def shutdown_event():
+    """Gracefully shutdown the processing server"""
+    logger.info("Shutting down processing server...")
+    job_queue.shutdown(timeout=10.0)
+    logger.info("Processing server shutdown complete")
 
 
 class EnqueueResponse(BaseModel):
@@ -122,3 +130,8 @@ def analyze_sync(request: AnalysisRequest):
         logger.exception("sync analyze failed")
         raise HTTPException(status_code=500, detail=str(e))
     return result
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8001)

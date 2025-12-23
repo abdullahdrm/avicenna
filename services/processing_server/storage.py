@@ -6,7 +6,7 @@ import threading
 from pathlib import Path
 from typing import Optional
 
-from .models import AnalysisResult
+from models import AnalysisResult
 
 
 class ProcessingStore:
@@ -18,7 +18,8 @@ class ProcessingStore:
         self._init_db()
 
     def _init_db(self) -> None:
-        with self._get_conn() as conn:
+        conn = self._get_conn()
+        try:
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS analyses (
@@ -32,6 +33,8 @@ class ProcessingStore:
                 """
             )
             conn.commit()
+        finally:
+            conn.close()
 
     def _get_conn(self) -> sqlite3.Connection:
         return sqlite3.connect(self.db_path, check_same_thread=False)
@@ -44,30 +47,39 @@ class ProcessingStore:
     def save_analysis(
         self, case_id: str, image_id: str, image_path: Path, result: AnalysisResult
     ) -> None:
-        data = result.model_dump()
+        # Use model_dump with mode='json' to properly serialize datetime objects
+        data = result.model_dump(mode='json')
         payload = json.dumps(data)
-        with self._lock, self._get_conn() as conn:
-            conn.execute(
-                """
-                INSERT INTO analyses (case_id, image_id, image_path, result_json, processed_at)
-                VALUES (?, ?, ?, ?, strftime('%s','now'))
-                """,
-                (case_id, image_id, str(image_path), payload),
-            )
-            conn.commit()
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                conn.execute(
+                    """
+                    INSERT INTO analyses (case_id, image_id, image_path, result_json, processed_at)
+                    VALUES (?, ?, ?, ?, strftime('%s','now'))
+                    """,
+                    (case_id, image_id, str(image_path), payload),
+                )
+                conn.commit()
+            finally:
+                conn.close()
 
     def get_latest_analysis_for_case(self, case_id: str) -> Optional[AnalysisResult]:
-        with self._lock, self._get_conn() as conn:
-            row = conn.execute(
-                """
-                SELECT result_json
-                FROM analyses
-                WHERE case_id = ?
-                ORDER BY processed_at DESC
-                LIMIT 1
-                """,
-                (case_id,),
-            ).fetchone()
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                row = conn.execute(
+                    """
+                    SELECT result_json
+                    FROM analyses
+                    WHERE case_id = ?
+                    ORDER BY processed_at DESC
+                    LIMIT 1
+                    """,
+                    (case_id,),
+                ).fetchone()
+            finally:
+                conn.close()
         if not row:
             return None
         result_json = row[0]
