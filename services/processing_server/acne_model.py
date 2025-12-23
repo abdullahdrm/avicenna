@@ -55,8 +55,20 @@ class GeneralConditionClassifier:
     
     def _load_model(self):
         try:
-            # Load the PyTorch model checkpoint
-            self.model = torch.load(self.model_path, map_location=self.device)
+            self.model = models.mobilenet_v2(pretrained=False)
+            in_features = self.model.classifier[1].in_features
+            self.model.classifier = nn.Sequential(
+                nn.Dropout(0.3),
+                nn.Linear(in_features, 23)
+            )
+            
+            checkpoint = torch.load(self.model_path, map_location=self.device)
+            if isinstance(checkpoint, dict) and 'state_dict' in checkpoint:
+                self.model.load_state_dict(checkpoint['state_dict'])
+            else:
+                self.model.load_state_dict(checkpoint)
+            
+            self.model.to(self.device)
             self.model.eval()
             logger.info(f"General condition model loaded from {self.model_path}")
         except Exception as e:
