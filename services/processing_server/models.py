@@ -64,7 +64,7 @@ class AnalysisRequest(BaseModel):
     gender: Optional[Gender] = None
     skin_type: Optional[SkinType] = None
 
-    problem_type: ProblemType = ProblemType.acne
+    problem_type: Optional[ProblemType] = None
     is_follow_up: bool = False
 
     priority: RequestPriority = RequestPriority.normal

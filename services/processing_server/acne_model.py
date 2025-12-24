@@ -55,11 +55,11 @@ class GeneralConditionClassifier:
     
     def _load_model(self):
         try:
-            self.model = models.mobilenet_v2(pretrained=False)
-            in_features = self.model.classifier[1].in_features
-            self.model.classifier = nn.Sequential(
-                nn.Dropout(0.3),
-                nn.Linear(in_features, 23)
+            # swin 23 classes
+            self.model = timm.create_model(
+                'swin_small_patch4_window7_224',
+                pretrained=False,
+                num_classes=23
             )
             
             checkpoint = torch.load(self.model_path, map_location=self.device)
@@ -70,7 +70,7 @@ class GeneralConditionClassifier:
             
             self.model.to(self.device)
             self.model.eval()
-            logger.info(f"General condition model loaded from {self.model_path}")
+            logger.info(f"General condition model (Swin Transformer, 23 classes) loaded from {self.model_path}")
         except Exception as e:
             logger.error(f"Failed to load general condition model: {e}")
             self.model = None
@@ -180,19 +180,35 @@ class AcneClassifier:
             self.model.to(self.device)
             self.model.eval()
             
+            logger.info(f"Acne severity model (MobileNet v2, 4 classes) loaded from {self.model_path}")
+            self.model.eval()
+            
             logger.info(f"Loaded acne classification model: {model_name}")
             
         except Exception as e:
             logger.error(f"Failed to load model: {e}")
             self.model = None
     
-    def predict(self, image_bgr: np.ndarray) -> dict:
+    def predict(self, image) -> dict:
+        """
+        Predict acne severity from image.
+        Args:
+            image: PIL Image or numpy array (BGR format)
+        """
         if self.model is None:
             raise RuntimeError("Model not loaded")
         
         try:
-            image_rgb = image_bgr[:, :, ::-1]
-            pil_image = Image.fromarray(image_rgb)
+            # image PIL
+            if isinstance(image, Image.Image):
+                pil_image = image
+                if pil_image.mode != 'RGB':
+                    pil_image = pil_image.convert('RGB')
+            elif isinstance(image, np.ndarray):
+                image_rgb = image[:, :, ::-1]
+                pil_image = Image.fromarray(image_rgb)
+            else:
+                raise ValueError(f"Unsupported image type: {type(image)}")
             
             input_tensor = self.transform(pil_image).unsqueeze(0).to(self.device)
             
@@ -208,16 +224,16 @@ class AcneClassifier:
             
             # Map severity to numeric score (0-1)
             severity_mapping = {
-                'mild': 0.2,
-                'moderate': 0.4, 
-                'severe': 0.7,
-                'very_severe': 1.0
+                'clear': 0.0,
+                'mild': 0.33,
+                'moderate': 0.67, 
+                'severe': 1.0
             }
             
             return {
                 'predicted_class': predicted_severity,
                 'confidence': confidence_score,
-                'severity_score': severity_mapping[predicted_severity],
+                'severity_score': severity_mapping.get(predicted_severity, 0.5),
                 'class_probabilities': {
                     name: float(prob) for name, prob in zip(self.class_names, class_probs)
                 },

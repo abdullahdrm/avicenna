@@ -132,71 +132,73 @@ def _ml_segmentation_and_classification(image_bytes: bytes, req: AnalysisRequest
         
         pil_image = _load_pil(image_bytes)
         
-        import cv2
-        import numpy as np
-        np_bytes = np.frombuffer(image_bytes, np.uint8)
-        bgr_image = cv2.imdecode(np_bytes, cv2.IMREAD_COLOR)
+        # 23 class general
+        general_model_path = Path(__file__).parent.parent.parent / "ml" / "training" / "final_model_v1.pth"
+        general_classifier = GeneralConditionClassifier(str(general_model_path), device='cpu')
+        general_result = general_classifier.predict(pil_image)
         
-        if bgr_image is None:
-            raise ValueError("Could not decode image")
+        detected_condition = general_result['condition']
+        is_acne = general_result['is_acne']
         
-        condition_model_path = Path(__file__).parent.parent.parent / "ml" / "training" / "mobilenet_v2_best.pth"
-        general_classifier = GeneralConditionClassifier(str(condition_model_path), device='cpu')
-        condition_result = general_classifier.predict(pil_image)
+        logger.info(f"General classifier detected: {detected_condition} (is_acne={is_acne}, confidence={general_result['confidence']:.2f})")
         
-        mask, score = process_image(bgr_image)
+        # if acne severity
+        if is_acne:
+            import cv2
+            import numpy as np
+            np_bytes = np.frombuffer(image_bytes, np.uint8)
+            bgr_image = cv2.imdecode(np_bytes, cv2.IMREAD_COLOR)
+            
+            if bgr_image is None:
+                raise ValueError("Could not decode image")
+            
+            preprocessed_bgr, mask, score = process_image(bgr_image)
         
-        lesion_pixels = np.sum(mask > 0)
-        total_pixels = mask.size
-        lesion_ratio = lesion_pixels / total_pixels
-        
-        _, labels, stats, _ = cv2.connectedComponentsWithStats(mask.astype(np.uint8), connectivity=8)
-        lesion_count = max(0, labels.max() - 1)
-        
-        if condition_result['is_acne']:
-            acne_model_path = Path(__file__).parent.parent.parent / "ml" / "training" / "final_model_v1.pth"
+            lesion_pixels = np.sum(mask > 0)
+            total_pixels = mask.size
+            lesion_ratio = lesion_pixels / total_pixels
+            
+            _, labels, stats, _ = cv2.connectedComponentsWithStats(mask.astype(np.uint8), connectivity=8)
+            lesion_count = max(0, labels.max() - 1)
+            
+            acne_model_path = Path(__file__).parent.parent.parent / "ml" / "training" / "mobilenet_v2_best.pth"
             acne_classifier = AcneClassifier(str(acne_model_path), device='cpu')
             acne_result = acne_classifier.predict(pil_image)
             
             severity_score = acne_result['severity_score']
             predicted_class = acne_result['predicted_class']
             confidence = acne_result['confidence']
-            class_probs = acne_result['class_probabilities']
-            problem_type = 'acne'
-        else:
-            severity_score = condition_result['confidence']
-            predicted_class = condition_result['condition']
-            confidence = condition_result['confidence']
-            class_probs = condition_result['class_probabilities']
-            problem_type = condition_result['condition'].lower()
-        
-        per_region = {
-            "forehead": int(lesion_count * 0.3),
-            "left_cheek": int(lesion_count * 0.35),
-            "right_cheek": int(lesion_count * 0.35),
-        }
-        
-        return Metrics(
-            lesion_count=lesion_count,
-            severity_score=severity_score,
-            per_region=per_region,
-            extra={
-                "lesion_pixel_ratio": lesion_ratio,
-                "total_lesion_pixels": int(lesion_pixels),
-                "segmentation_method": "kmeans_slic_grabcut",
-                "general_condition": condition_result['condition'],
-                "general_confidence": condition_result['confidence'],
-                "is_acne": condition_result['is_acne'],
-                "problem_type": problem_type,
-                "classification_model": "two_stage_mobilenet_v2",
-                "predicted_severity": predicted_class,
-                "prediction_confidence": confidence,
-                "class_probabilities": class_probs,
+            
+            per_region = {
+                "forehead": int(lesion_count * 0.3),
+                "left_cheek": int(lesion_count * 0.35),
+                "right_cheek": int(lesion_count * 0.35),
             }
-        ), problem_type
+            
+            return Metrics(
+                lesion_count=lesion_count,
+                severity_score=severity_score,
+                per_region=per_region,
+                extra={
+                    "problem_type": f"{detected_condition} - {predicted_class}",
+                    "is_follow_up": False
+                }
+            ), detected_condition
+        else:
+            return Metrics(
+                lesion_count=0,
+                severity_score=0.0,
+                per_region={"forehead": 0, "left_cheek": 0, "right_cheek": 0},
+                extra={
+                    "problem_type": detected_condition,
+                    "is_follow_up": False
+                }
+            ), detected_condition
         
     except Exception as e:
-        logger.warning(f"ML analysis failed: {e}, falling back to stub")
+        import traceback
+        logger.error(f"ML analysis failed: {e}")
+        logger.error(traceback.format_exc())
         return _vit_stub(image_bytes, req)
 
 
@@ -214,8 +216,8 @@ def _vit_stub(image_bytes: bytes, req: AnalysisRequest) -> Tuple[Metrics, str]:
         "right_cheek": int(lesions * 0.35),
     }
 
-    extra = {"problem_type": req.problem_type.value, "is_follow_up": req.is_follow_up}
-    return Metrics(lesion_count=lesions, severity_score=sev, per_region=per_region, extra=extra), req.problem_type.value
+    extra = {"problem_type": req.problem_type.value if req.problem_type else "acne", "is_follow_up": req.is_follow_up}
+    return Metrics(lesion_count=lesions, severity_score=sev, per_region=per_region, extra=extra), req.problem_type.value if req.problem_type else "acne"
 
 
 def _compare(previous: Optional[AnalysisResult], current: Metrics) -> Optional[Comparison]:
