@@ -13,17 +13,13 @@ class User(AbstractUser):
         (ROLE_DOCTOR, 'Doctor'),
     ]
 
-    email = models.EmailField(unique=True)
     role = models.CharField(
         max_length=10,
         choices=ROLE_CHOICES
     )
 
-    USERNAME_FIELD = 'email'
-    REQUIRED_FIELDS = ['username'] 
-
     def __str__(self):
-        return f"{self.email} ({self.role})"
+        return f"{self.username} ({self.role})"
 
 
 class PatientProfile(models.Model):
@@ -36,9 +32,8 @@ class PatientProfile(models.Model):
     SKIN_TYPES = [
         ('dry', 'Dry'),
         ('oily', 'Oily'),
-        ('combination', 'Combination'),
+        ('combined', 'Combined'),
         ('normal', 'Normal'),
-        ('sensitive', 'Sensitive'),
     ]
 
     patient = models.OneToOneField(
@@ -68,7 +63,7 @@ class PatientProfile(models.Model):
 
     allergies = models.TextField(blank=True)
     medications = models.TextField(blank=True)
-    medical_conditions = models.TextField(blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -120,31 +115,39 @@ class DoctorProfile(models.Model):
 
 class Submission(models.Model):
 
-    skin_analysis = models.OneToOneField(
-        'SkinAnalysis', 
-        on_delete=models.CASCADE, 
-        related_name='submission',
-        null=True,
-        blank=True
-    )
+    PAIN_LEVEL_CHOICES = [
+        (1, 'Very Low'),
+        (2, 'Low'),
+        (3, 'Moderate'),
+        (4, 'High'),
+        (5, 'Very High'),
+    ]
 
     patient = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name='patient_submissions',
-        limit_choices_to={'role': 'patient'}
-    )
+        limit_choices_to={'role': 'patient'})
     doctor = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name='doctor_submissions',
-        limit_choices_to={'role': 'doctor'}
-    )
-    
+        limit_choices_to={'role': 'doctor'})
     status = models.CharField(
         choices=[('pending', 'Pending'), ('reviewed', 'Reviewed')],
         default='pending'
     )
+    photo = models.ImageField(
+        upload_to='submissions/files/',
+        null=True,
+        blank=True)
+    place = models.CharField(
+        max_length=100)
+    duration_days = models.PositiveIntegerField()
+    pain_level = models.IntegerField(
+        choices=PAIN_LEVEL_CHOICES)
+    comment = models.TextField(
+        blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -188,21 +191,16 @@ class Medication(models.Model):
     frequency = models.CharField(max_length=255)
     
 class SkinAnalysis(models.Model):
-    job_id = models.CharField(max_length=100, blank=True, null=True)
     image = models.ImageField(upload_to='skin_scans/')
     body_part = models.CharField(max_length=100, default="Face")
     prediction = models.CharField(max_length=100, blank=True, null=True)
     confidence = models.FloatField(default=0.0)
+
     status = models.CharField(
         max_length=20,
-        choices=[('analyzed', 'Analyzed'), ('review', 'Under Review'), ('reviewed', 'Reviewed')],
+        choices=[('analyzed', 'Analyzed'), ('review', 'Under Review')],
         default='review'
     )
-    answers = models.JSONField(default=dict, blank=True)
-    patient = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='skin_analyses', null=True) 
-    pain_level = models.IntegerField(default=0)
-    duration = models.CharField(max_length=100, blank=True, null=True)
-    comments = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

@@ -1,33 +1,25 @@
-from django.urls import path, include
-from rest_framework.routers import DefaultRouter
+from django.urls import path
 from .views import *
-from rest_framework_simplejwt.views import TokenRefreshView
 
-router = DefaultRouter()
-
-
-router.register(r'skin-analysis', SkinAnalysisViewSet, basename='skin-analysis')
-router.register(r'articles', ArticleViewSet)
-router.register(r'tips', DailyTipViewSet)
 
 urlpatterns = [
-    path('', include(router.urls)),
     # Authentication
-    path('users/', UserCreateView.as_view(), name='user-register'),
     path('login/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('token/refresh/', CustomRefreshTokenView.as_view(), name='token_refresh'),
+    path('logout/', logout, name='logout'),
     path('authenticated/', is_authenticated),
-    path('profile/', PatientProfileView.as_view(), name='profile'),
+    path('register/', register, name='register'),
+
     # Doctor
     path('doctor/submissions/', DoctorSubmissionsView.as_view(), name='doctor-submissions'),
     path('submissions/<int:pk>/', DoctorSubmissionDetailView.as_view(), name='submission-detail'),
-    path('doctor/profile/', DoctorProfileView.as_view(), name='doctor-me'),
+    path('doctor/profile/', DoctorMeView.as_view(), name='doctor-me'),
     path("doctor/dashboard/", DoctorDashboardView.as_view()),
-    path('doctor/submissions/<int:pk>/', DoctorSubmissionDetailView.as_view(), name='doctor-submission-detail'),
     path(
-        "submissions/<int:id>/report/",
-        SubmissionReportCreateView.as_view(),
-        name="submission-report-create",
-    ),
-    path('patient/reports/', PatientReportsView.as_view(), name='patient-reports'), 
+            "submissions/<int:id>/report/",
+            SubmissionReportCreateView.as_view(),
+            name="submission-report-create",
+        ),
+
+
 ]
