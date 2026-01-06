@@ -20,27 +20,22 @@ import random
 
 # Create your views here.
 
-# START AUTHENTICATION
+
 
 def check_image_quality(image_file):
-    # Read the image file into a numpy array
     file_bytes = np.frombuffer(image_file.read(), np.uint8)
     img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
     
     if img is None:
         return False, "Invalid image format"
 
-    # Convert to grayscale for analysis
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-    # 1. Blur Detection
-    # Variance of Laplacian < 50 usually indicates a blurry image
     lap_var = cv2.Laplacian(gray, cv2.CV_64F).var()
     if lap_var < 50:
         return False, "Image is too blurry. Please hold steady."
 
-    # 2. Brightness Detection
-    # Mean pixel intensity (0-255)
+ 
     brightness = gray.mean()
     if brightness < 40:
         return False, "Image is too dark. Please find better lighting."
@@ -79,7 +74,6 @@ class DoctorSubmissionDetailView(RetrieveAPIView):
     permission_classes = [IsAuthenticated, IsDoctor]
 
     def get_queryset(self):
-        # 🔐 Doctor can only access their own submissions
         return Submission.objects.filter(doctor=self.request.user)
 
 
@@ -207,7 +201,6 @@ class SubmissionReportCreateView(APIView):
     def post(self, request, id):
         submission = get_object_or_404(Submission, id=id)
 
-        # Prevent duplicate report
         if hasattr(submission, "report"):
             return Response(
                 {"detail": "Report already exists."},
@@ -219,7 +212,6 @@ class SubmissionReportCreateView(APIView):
 
         report = serializer.save(submission=submission)
 
-        # Mark submission as reviewed
         submission.status = "reviewed"
         submission.save(update_fields=["status"])
 
@@ -232,59 +224,92 @@ class SkinAnalysisViewSet(viewsets.ModelViewSet):
     queryset = SkinAnalysis.objects.all().order_by('-created_at')
     serializer_class = SkinAnalysisSerializer
     permission_classes = [IsAuthenticated]
+
     def get_queryset(self):
-        # This tells Django: "Only fetch rows where the patient is ME"
         return SkinAnalysis.objects.filter(patient=self.request.user).order_by('-created_at')
+
+   
     def create(self, request, *args, **kwargs):
         image_file = request.FILES.get("image")
-        
         if not image_file:
             return Response({"error": "No image provided"}, status=400)
-
-        # --- START QUALITY CHECK ---
         is_good, message = check_image_quality(image_file)
-        image_file.seek(0) # Reset file pointer
-
+        image_file.seek(0)
         if not is_good:
             return Response({
-                "status": "rejected",
-                "reason": message,
+                "status": "rejected", 
+                "reason": message, 
                 "action": "retake"
             }, status=400)
-        # --- END QUALITY CHECK ---
-
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
-        # Random Mock Prediction
-        import random
-        mock_diseases = ["Acne", "Eczema", "Psoriasis", "Rosacea"]
-        prediction = random.choice(mock_diseases)
-        confidence = random.uniform(0.75, 0.98)
-        
-
-        # --- SAVE WITH USER ---
         instance = serializer.save(
             patient=request.user,
-            prediction=prediction, 
-            confidence=round(confidence, 2),
-            status="analyzed",
-            body_part=request.data.get('body_part', 'Face') ,
-            
+            status="processing",
+            body_part=request.data.get('body_part', 'Face')
         )
-        
-        return Response({
-            "id": instance.id,
-            "status": "analyzed", 
-            "prediction": prediction, # 
-            "message": "Analysis complete."
-        }, status=status.HTTP_201_CREATED)
+
+        full_image_url = request.build_absolute_uri(instance.image.url)
+
+        ai_result = process_sync(
+            image_url=full_image_url,
+            case_id=str(instance.id),
+            image_id=f"img_{instance.id}"
+        )
+
+        if ai_result:
+            
+            metrics = ai_result.get("metrics", {}) or {}
+            extra_data = metrics.get("extra", {}) or {}
+            
+            raw_prediction = extra_data.get("problem_type")
+            
+            if not raw_prediction:
+                raw_prediction = metrics.get("condition", "Unknown")
+
+            clean_name = raw_prediction
+            if clean_name and clean_name != "Unknown":
+                clean_name = clean_name.replace(" Photos", "")
+                clean_name = clean_name.split(" - ")[0]
+                
+                if "Acne" in clean_name and "Rosacea" in clean_name:
+                    clean_name = "Acne or Rosacea"
+                elif "Malignant Lesions" in clean_name:
+                    clean_name = "Skin Lesion (Check Required)"
+
+            confidence = metrics.get("confidence", metrics.get("severity_score", 0.0))
+            
+
+            instance.prediction = clean_name
+            instance.confidence = round(float(confidence), 2)
+            instance.status = "analyzed"
+            instance.save()
+            
+            return Response({
+                "id": instance.id,
+                "status": "analyzed",
+                "prediction": instance.prediction,
+                "confidence": instance.confidence,
+                "message": "AI Analysis complete."
+            }, status=201)
+            
+        else:
+            print("AI Failed, using fallback...")
+            instance.prediction = "Unknown"
+            instance.status = "failed"
+            instance.save()
+
+            return Response({
+                "id": instance.id,
+                "status": "failed",
+                "message": "AI server did not respond."
+            }, status=500)
         
     @action(detail=True, methods=['get'])
     def check_status(self, request, pk=None):
         instance = self.get_object()
         
-        process_sync(instance.image, instance.pk, 1);
 
         if not instance.prediction:
             return Response({"status": "processing"})
@@ -369,14 +394,11 @@ class SkinAnalysisViewSet(viewsets.ModelViewSet):
     def answer_questions(self, request, pk=None):
         instance = self.get_object()
         
-        # 1. Save the answers from the frontend
         user_answers = request.data.get('answers', {})
         instance.answers = user_answers
-        instance.status = 'analyzed' # Mark AI flow as done
+        instance.status = 'analyzed' 
         instance.save()
 
-        # 2. Logic to assign a Random Doctor
-        # Find all users who are doctors
         doctors = User.objects.filter(role=User.ROLE_DOCTOR)
         
         if not doctors.exists():
@@ -387,8 +409,7 @@ class SkinAnalysisViewSet(viewsets.ModelViewSet):
         
         assigned_doctor = doctors.order_by('?').first() # '?' orders randomly
         patient_user = instance.patient if instance.patient else request.user
-        # 3. Create the Submission for the Doctor
-        # We assume the user logged in is the patient, or we use instance.patient
+        
         Submission.objects.create(
             patient=patient_user,
             doctor=assigned_doctor,
@@ -439,7 +460,6 @@ class UserCreateView(APIView):
                 {"detail": "Account created successfully"}, 
                 status=status.HTTP_201_CREATED
             )
-        # Log error to console for debugging
         print("Registration Error:", serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     

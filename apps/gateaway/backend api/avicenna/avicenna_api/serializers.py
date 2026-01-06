@@ -14,7 +14,6 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     def get_token(cls, user):
         token = super().get_token(user)
 
-        # Add custom claims
         token['user_id'] = user.id
         token['username'] = user.username
         token['role'] = user.role
@@ -24,14 +23,13 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         data = super().validate(attrs)
 
-        # Add extra response data
         data['user'] = {
             'id': self.user.id,
             'username': self.user.username,
             'email': self.user.email,
             'role': self.user.role,
-            'first_name': self.user.first_name, # <--- IMPORTANT
-            'last_name': self.user.last_name,   # <--- IMPORTANT
+            'first_name': self.user.first_name, 
+            'last_name': self.user.last_name, 
         }
 
         return data
@@ -112,9 +110,6 @@ class DoctorProfileSerializer(serializers.ModelSerializer):
             "stats",
         ]
 
-    # --------------------
-    # USER INFO
-    # --------------------
     def get_user(self, obj):
         user = obj.doctor
         return {
@@ -125,9 +120,7 @@ class DoctorProfileSerializer(serializers.ModelSerializer):
             "last_name": user.last_name,
         }
 
-    # --------------------
-    # STATS (EFFICIENT)
-    # --------------------
+
     def get_stats(self, obj):
         doctor = obj.doctor
 

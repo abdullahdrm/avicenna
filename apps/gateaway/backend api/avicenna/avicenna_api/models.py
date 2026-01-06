@@ -19,9 +19,7 @@ class User(AbstractUser):
         choices=ROLE_CHOICES
     )
 
-    # Use email as the identifier for login
     USERNAME_FIELD = 'email'
-    # Required fields for createsuperuser (excluding email and password)
     REQUIRED_FIELDS = ['username'] 
 
     def __str__(self):
@@ -190,6 +188,7 @@ class Medication(models.Model):
     frequency = models.CharField(max_length=255)
     
 class SkinAnalysis(models.Model):
+    job_id = models.CharField(max_length=100, blank=True, null=True)
     image = models.ImageField(upload_to='skin_scans/')
     body_part = models.CharField(max_length=100, default="Face")
     prediction = models.CharField(max_length=100, blank=True, null=True)
@@ -200,7 +199,7 @@ class SkinAnalysis(models.Model):
         default='review'
     )
     answers = models.JSONField(default=dict, blank=True)
-    patient = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='skin_analyses', null=True) # Link to user
+    patient = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='skin_analyses', null=True) 
     pain_level = models.IntegerField(default=0)
     duration = models.CharField(max_length=100, blank=True, null=True)
     comments = models.TextField(blank=True, null=True)
