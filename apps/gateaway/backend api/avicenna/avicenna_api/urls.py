@@ -36,5 +36,8 @@ urlpatterns = [
     path('patient/reports/', PatientReportsView.as_view(), name='patient-reports'),
     path("followup-requests/<int:request_id>/<str:action>/",
          FollowUpRequestActionsView.as_view()),
+    path("doctor/availability/", DoctorAvailabilityCalendarView.as_view(),
+         name="doctor-availability"),
+
 
 ]

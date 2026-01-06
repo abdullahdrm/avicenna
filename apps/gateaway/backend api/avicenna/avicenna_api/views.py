@@ -32,6 +32,7 @@ from django.shortcuts import get_object_or_404
 from django.db.models import Q
 from django.core.exceptions import ValidationError
 from django.utils import timezone
+from datetime import datetime
 
 
 def check_image_quality(image_file):
@@ -793,3 +794,33 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
         notif.is_read = True
         notif.save(update_fields=["is_read"])
         return Response({"detail": "Marked as read."})
+
+
+class DoctorAvailabilityCalendarView(APIView):
+    permission_classes = [IsAuthenticated, IsDoctor]
+
+    def get(self, request):
+        start_str = request.query_params.get("start")
+        days_param = request.query_params.get("days", 14)
+
+        start_date = None
+        if start_str:
+            try:
+                start_date = datetime.strptime(start_str, "%Y-%m-%d").date()
+            except ValueError:
+                return Response(
+                    {"detail": "Invalid 'start' format. Use YYYY-MM-DD."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+        days = clamp_days(days_param, max_days=60)
+
+        payload, err = build_doctor_availability_calendar(
+            doctor_user=request.user,
+            start_date=start_date,
+            days=days
+        )
+        if err:
+            return Response({"detail": err}, status=status.HTTP_404_NOT_FOUND)
+
+        return Response(DoctorAvailabilityCalendarSerializer(payload).data, status=status.HTTP_200_OK)

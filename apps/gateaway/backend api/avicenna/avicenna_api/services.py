@@ -7,6 +7,10 @@ from .models import (
     FollowUpCase, FollowUpRequest, FollowUpLink, FollowUpNote, Notification, AuditLog
 )
 from .models import Submission, DoctorProfile
+from datetime import timedelta
+from django.db.models import Count, Q
+from django.db.models.functions import TruncDate
+from django.utils import timezone
 
 
 def _weekday_code(date_obj) -> str:
@@ -127,3 +131,103 @@ def decline_request(req: FollowUpRequest, actor, doctor_response=""):
         body=doctor_response or "Doctor declined your follow-up request.",
         payload={"case_id": req.case.id, "request_id": req.id},
     )
+
+
+WEEKDAY_CODES = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+
+
+def weekday_code(date_obj):
+    return WEEKDAY_CODES[date_obj.weekday()]
+
+
+def clamp_days(days: int, max_days: int = 60) -> int:
+    try:
+        days = int(days)
+    except Exception:
+        days = 14
+    if days < 1:
+        days = 1
+    if days > max_days:
+        days = max_days
+    return days
+
+
+def build_doctor_availability_calendar(doctor_user, start_date=None, days=14):
+
+    try:
+        profile = doctor_user.doctor_profile
+    except DoctorProfile.DoesNotExist:
+        return None, "Doctor profile not found."
+
+    if start_date is None:
+        start_date = timezone.localdate()
+
+    days = clamp_days(days)
+    end_date = start_date + timedelta(days=days - 1)
+
+    qs = (
+        Submission.objects.filter(
+            doctor=doctor_user,
+            created_at__date__gte=start_date,
+            created_at__date__lte=end_date,
+        )
+        .annotate(day=TruncDate("created_at"))
+        .values("day")
+        .annotate(
+            total=Count("id"),
+            pending=Count("id", filter=Q(status="pending")),
+            reviewed=Count("id", filter=Q(status="reviewed")),
+        )
+        .order_by("day")
+    )
+
+    counts_by_day = {}
+    for row in qs:
+        counts_by_day[row["day"]] = {
+            "total": row["total"],
+            "pending": row["pending"],
+            "reviewed": row["reviewed"],
+        }
+
+    allowed_days = profile.allowed_days or []
+    capacity = int(profile.max_submissions_per_day or 0)
+
+    output_days = []
+    cur = start_date
+    for _ in range(days):
+        wd = weekday_code(cur)
+        allowed = (wd in allowed_days) if allowed_days else True
+
+        counts = counts_by_day.get(
+            cur, {"total": 0, "pending": 0, "reviewed": 0})
+        total = int(counts["total"])
+        pending = int(counts["pending"])
+        reviewed = int(counts["reviewed"])
+
+        remaining = max(capacity - total, 0) if allowed else 0
+        is_full = (total >= capacity) if allowed else True
+
+        output_days.append(
+            {
+                "date": cur,
+                "weekday": wd,
+                "allowed": bool(allowed),
+                "submissions_count": total,
+                "pending_count": pending,
+                "reviewed_count": reviewed,
+                "capacity": capacity if allowed else 0,
+                "remaining": remaining,
+                "is_full": bool(is_full),
+            }
+        )
+        cur += timedelta(days=1)
+
+    payload = {
+        "doctor_id": doctor_user.id,
+        "allowed_days": allowed_days,
+        "max_submissions_per_day": capacity,
+        "start_date": start_date,
+        "end_date": end_date,
+        "days": output_days,
+    }
+    return payload, None

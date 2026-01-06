@@ -412,3 +412,24 @@ class NotificationSerializer(serializers.ModelSerializer):
         model = Notification
         fields = ["id", "notif_type", "title", "body",
                   "payload", "is_read", "created_at"]
+
+
+class AvailabilityDaySerializer(serializers.Serializer):
+    date = serializers.DateField()
+    weekday = serializers.CharField()
+    allowed = serializers.BooleanField()
+    submissions_count = serializers.IntegerField()
+    pending_count = serializers.IntegerField()
+    reviewed_count = serializers.IntegerField()
+    capacity = serializers.IntegerField()
+    remaining = serializers.IntegerField()
+    is_full = serializers.BooleanField()
+
+
+class DoctorAvailabilityCalendarSerializer(serializers.Serializer):
+    doctor_id = serializers.IntegerField()
+    allowed_days = serializers.ListField(child=serializers.CharField())
+    max_submissions_per_day = serializers.IntegerField()
+    start_date = serializers.DateField()
+    end_date = serializers.DateField()
+    days = AvailabilityDaySerializer(many=True)
