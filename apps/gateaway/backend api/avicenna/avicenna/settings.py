@@ -31,7 +31,7 @@ ALLOWED_HOSTS = ['*'] # DEVELOPMENT ONLY
 # Application definition
 
 INSTALLED_APPS = [
-
+    'daphne',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -76,7 +76,7 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'avicenna.wsgi.application'
+ASGI_APPLICATION = 'avicenna.asgi.application'
 
 
 # Database
@@ -84,8 +84,12 @@ WSGI_APPLICATION = 'avicenna.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'avicenna',           # The "Initial database name" you set at the bottom of the AWS page
+        'USER': 'avicenna_admin',           # Your Master username
+        'PASSWORD': 'xijduv-zimzow-tutKa8',  # The password you created
+        'HOST': 'avicenna-db.cc1msam08f8g.us-east-1.rds.amazonaws.com',  # Paste the long RDS endpoint URL here
+        'PORT': '5432',
     }
 }
 
@@ -157,3 +161,8 @@ SIMPLE_JWT = {
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer"
+    }
+}
