@@ -2,6 +2,7 @@ import { ChevronRight, Droplet, Search, Shield, Sparkles, Sun } from 'lucide-rea
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useLanguage } from '../../lib/LanguageContext';
 
 interface Article {
   id: number;
@@ -18,12 +19,13 @@ interface DailyTip {
 }
 
 export default function LearnScreen() {
+  const { t } = useLanguage();
   const [activeCategory, setActiveCategory] = useState('All');
   const [articles, setArticles] = useState<Article[]>([]);
   const [dailyTip, setDailyTip] = useState<DailyTip | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const BASE_URL = 'http://10.149.24.43:8000';
+  const BASE_URL = 'http://10.239.178.43:8000';
   const categories = ['All', 'Acne', 'Anti-Aging', 'Routine', 'Dry Skin', 'Sun', 'Basics'];
 
   const fetchData = async () => {
@@ -42,7 +44,14 @@ export default function LearnScreen() {
       const articleRes = await fetch(articleUrl);
       if (articleRes.ok) {
         const articleJson = await articleRes.json();
-        setArticles(articleJson);
+        
+        if (Array.isArray(articleJson)) {
+          setArticles(articleJson);
+        } else if (articleJson.results) {
+          setArticles(articleJson.results);
+        } else {
+          setArticles([]);
+        }
       }
 
     } catch (error) {
@@ -65,9 +74,8 @@ export default function LearnScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Skin Education</Text>
+        <Text style={styles.headerTitle}>{t('learnScreen.skinEducation')}</Text>
         <TouchableOpacity style={styles.searchBtn} onPress={fetchData}>
-          {/* Search button used as a refresh */}
           <Search size={20} color="#374151" />
         </TouchableOpacity>
       </View>
@@ -77,26 +85,26 @@ export default function LearnScreen() {
         <View style={styles.dailyTipContainer}>
           <View style={styles.dailyHeader}>
             <Sparkles size={18} color="#B45309" />
-            <Text style={styles.dailyTitle}>Tip of the Day</Text>
+            <Text style={styles.dailyTitle}>{t('learnScreen.tipOfTheDay')}</Text>
           </View>
           <Text style={styles.dailyText}>
-            {dailyTip ? `"${dailyTip.content}"` : '"Loading your daily tip..."'}
+            {dailyTip ? `"${dailyTip.content}"` : `"${t('learnScreen.loading')}"`}
           </Text>
         </View>
 
-        <Text style={styles.sectionTitle}>Dermatology Essentials</Text>
+        <Text style={styles.sectionTitle}>{t('learnScreen.dermatologyEssentials')}</Text>
         <View style={styles.grid}>
           <TouchableOpacity style={[styles.gridItem, { backgroundColor: '#EFF6FF' }]} onPress={() => setActiveCategory('Dry Skin')}>
             <Droplet size={24} color="#2563EB" />
-            <Text style={[styles.gridLabel, { color: '#1E40AF' }]}>Hydration</Text>
+            <Text style={[styles.gridLabel, { color: '#1E40AF' }]}>{t('learnScreen.hydration')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[styles.gridItem, { backgroundColor: '#FEF3C7' }]} onPress={() => setActiveCategory('Sun')}>
             <Sun size={24} color="#D97706" />
-            <Text style={[styles.gridLabel, { color: '#92400E' }]}>Sun Care</Text>
+            <Text style={[styles.gridLabel, { color: '#92400E' }]}>{t('learnScreen.sunCare')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[styles.gridItem, { backgroundColor: '#ECFDF5' }]} onPress={() => setActiveCategory('Basics')}>
             <Shield size={24} color="#059669" />
-            <Text style={[styles.gridLabel, { color: '#065F46' }]}>Protection</Text>
+            <Text style={[styles.gridLabel, { color: '#065F46' }]}>{t('learnScreen.protection')}</Text>
           </TouchableOpacity>
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.catScroll}>
@@ -116,7 +124,7 @@ export default function LearnScreen() {
           ) : (
             articles.length === 0 ? (
               <Text style={{ textAlign: 'center', color: '#6B7280', marginTop: 20 }}>
-                No articles found for {activeCategory}.
+                {t('learnScreen.noArticles')} {activeCategory}.
               </Text>
             ) : (
               articles.map((article) => (

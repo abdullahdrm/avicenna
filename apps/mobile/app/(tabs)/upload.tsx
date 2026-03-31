@@ -6,8 +6,10 @@ import { AlertCircle, Camera, CheckCircle, ChevronRight, RefreshCw, SwitchCamera
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useLanguage } from '../../lib/LanguageContext';
 
 export default function UploadScreen() {
+  const { t } = useLanguage();
   const router = useRouter();
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
@@ -30,7 +32,7 @@ export default function UploadScreen() {
   const [serverQuestions, setServerQuestions] = useState<any[]>([]);
   const [userAnswers, setUserAnswers] = useState<{[key: string]: string}>({});
 
-  const BASE_URL = 'http://10.109.124.43:8000'; 
+  const BASE_URL = 'http://10.239.178.43:8000'; 
   const API_URL = `${BASE_URL}/api`;
 
 
@@ -69,10 +71,10 @@ export default function UploadScreen() {
   );
 
   const bodyAreas = [
-    'Forehead', 'Left Cheek', 'Right Cheek', 'Nose', 'Chin',
-    'Neck', 'Chest', 'Upper Back', 'Lower Back',
-    'Left Shoulder', 'Right Shoulder', 'Left Arm', 'Right Arm', 'Hands',
-    'Left Leg', 'Right Leg', 'Feet'
+    t('uploadScreen.forehead'), t('uploadScreen.leftCheek'), t('uploadScreen.rightCheek'), t('uploadScreen.nose'), t('uploadScreen.chin'),
+    t('uploadScreen.neck'), t('uploadScreen.chest'), t('uploadScreen.upperBack'), t('uploadScreen.lowerBack'),
+    t('uploadScreen.leftShoulder'), t('uploadScreen.rightShoulder'), t('uploadScreen.leftArm'), t('uploadScreen.rightArm'), t('uploadScreen.hands'),
+    t('uploadScreen.leftLeg'), t('uploadScreen.rightLeg'), t('uploadScreen.feet')
   ];
 
   function toggleCameraFacing() {
@@ -180,7 +182,6 @@ export default function UploadScreen() {
       const match = /\.(\w+)$/.exec(filename || '');
       const type = match ? `image/${match[1]}` : `image/jpeg`;
 
-      // @ts-ignore
       formData.append('image', { uri: capturedImage, name: filename, type });
       formData.append('body_part', areaName); 
       formData.append('status', 'review');
@@ -270,8 +271,8 @@ export default function UploadScreen() {
   if (!permission.granted) {
       return (
         <View style={styles.permissionContainer}>
-          <Text style={styles.permissionText}>Camera permission is required.</Text>
-          <TouchableOpacity onPress={requestPermission}><Text>Grant Permission</Text></TouchableOpacity>
+          <Text style={styles.permissionText}>{t('uploadScreen.cameraPermissionRequired')}</Text>
+          <TouchableOpacity onPress={requestPermission}><Text>{t('uploadScreen.grantPermission')}</Text></TouchableOpacity>
         </View>
       );
   }
@@ -279,7 +280,7 @@ export default function UploadScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>New Scan</Text>
+        <Text style={styles.headerTitle}>{t('uploadScreen.newScan')}</Text>
       </View>
       <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
         <View style={styles.cameraContainer}>
@@ -298,13 +299,13 @@ export default function UploadScreen() {
             ) : (
               <TouchableOpacity onPress={handleCapture} style={[styles.cameraPreview, { backgroundColor: '#1F2937' }]}>
                 <UploadIcon size={64} color="#4B5563" />
-                <Text style={styles.cameraText}>Tap to Select Image</Text>
+                <Text style={styles.cameraText}>{t('uploadScreen.tapToSelectImage')}</Text>
               </TouchableOpacity>
             )}
              {capturedImage && (
               <TouchableOpacity style={styles.retakeBtn} onPress={() => setCapturedImage(null)}>
                 <RefreshCw size={20} color="white" />
-                <Text style={styles.retakeText}>Retake</Text>
+                <Text style={styles.retakeText}>{t('uploadScreen.retake')}</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -314,20 +315,20 @@ export default function UploadScreen() {
                onPress={() => { setUploadMode('camera'); setCapturedImage(null); }}
              >
                <Camera size={16} color={uploadMode === 'camera' ? '#2563EB' : '#6B7280'} />
-               <Text style={[styles.toggleText, uploadMode === 'camera' && styles.textBlue]}>Camera</Text>
+               <Text style={[styles.toggleText, uploadMode === 'camera' && styles.textBlue]}>{t('uploadScreen.camera')}</Text>
              </TouchableOpacity>
              <TouchableOpacity 
                style={[styles.toggleBtn, uploadMode === 'upload' && styles.toggleBtnActive]} 
                onPress={() => setUploadMode('upload')}
              >
                <UploadIcon size={16} color={uploadMode === 'upload' ? '#2563EB' : '#6B7280'} />
-               <Text style={[styles.toggleText, uploadMode === 'upload' && styles.textBlue]}>Gallery</Text>
+               <Text style={[styles.toggleText, uploadMode === 'upload' && styles.textBlue]}>{t('uploadScreen.gallery')}</Text>
              </TouchableOpacity>
           </View>
         </View>
         {!capturedImage && (
           <View style={styles.actionContainer}>
-            <Text style={styles.hintText}>Ensure the area is well-lit and in focus.</Text>
+            <Text style={styles.hintText}>{t('uploadScreen.ensureWellLit')}</Text>
             <TouchableOpacity style={styles.captureBtn} onPress={handleCapture}>
               <View style={styles.captureBtnInner} />
             </TouchableOpacity>
@@ -339,7 +340,7 @@ export default function UploadScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select Condition Type</Text>
+              <Text style={styles.modalTitle}>{t('uploadScreen.selectConditionType')}</Text>
               <TouchableOpacity onPress={() => { setStep('camera'); setCapturedImage(null); }}>
                 <X size={24} color="#374151"/>
               </TouchableOpacity>
@@ -349,14 +350,14 @@ export default function UploadScreen() {
                 <AlertCircle size={24} color="#2563EB" />
               </View>
               <View style={{flex: 1}}>
-                <Text style={styles.optionTitle}>New Condition</Text>
-                <Text style={styles.optionDesc}>I haven't scanned this before</Text>
+                <Text style={styles.optionTitle}>{t('uploadScreen.newCondition')}</Text>
+                <Text style={styles.optionDesc}>{t('uploadScreen.iHavenNotScannedBefore')}</Text>
               </View>
               <ChevronRight size={20} color="#9CA3AF" />
             </TouchableOpacity>
             {recentActiveCases.length > 0 &&(
               <>
-                <Text style={[styles.sectionLabel, {marginTop: 10, marginBottom: 10}]}>Existing Conditions (Follow-up)</Text>
+                <Text style={[styles.sectionLabel, {marginTop: 10, marginBottom: 10}]}>{t('uploadScreen.existingConditions')}</Text>
                 {recentActiveCases.map((record) => (
                   <TouchableOpacity 
                     key={record.id} 
@@ -368,7 +369,7 @@ export default function UploadScreen() {
                     </View>
                     <View style={{flex: 1}}>
                       <Text style={styles.optionTitle}>{record.title}</Text>
-                      <Text style={styles.optionDesc}>Started {new Date(record.created_at).toLocaleDateString()}</Text>
+                      <Text style={styles.optionDesc}>{t('uploadScreen.started')} {new Date(record.created_at).toLocaleDateString()}</Text>
                     </View>
                     <ChevronRight size={20} color="#9CA3AF" />
                   </TouchableOpacity>
@@ -383,7 +384,7 @@ export default function UploadScreen() {
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { height: '85%' }]}>
              <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Skin Details</Text>
+              <Text style={styles.modalTitle}>{t('uploadScreen.skinDetails')}</Text>
               <TouchableOpacity onPress={() => setStep('camera')}>
                 <X size={24} color="#374151"/>
               </TouchableOpacity>
@@ -391,7 +392,7 @@ export default function UploadScreen() {
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
                {!selectedRecord && (
                  <>
-                   <Text style={styles.sectionLabel}>Select Body Area</Text>
+                   <Text style={styles.sectionLabel}>{t('uploadScreen.selectBodyArea')}</Text>
                    <View style={styles.grid}>
                      {bodyAreas.map((area) => (
                        <TouchableOpacity 
@@ -409,7 +410,7 @@ export default function UploadScreen() {
                  <View style={styles.formSection}>
                    <View style={styles.divider} />
                    
-                   <Text style={styles.inputLabel}>Pain Level (0-10)</Text>
+                   <Text style={styles.inputLabel}>{t('uploadScreen.painLevel')}</Text>
                    <View style={styles.painRow}>
                      {[0, 2, 4, 6, 8, 10].map((val) => (
                        <TouchableOpacity 
@@ -422,25 +423,25 @@ export default function UploadScreen() {
                      ))}
                    </View>
 
-                   <Text style={styles.inputLabel}>Duration</Text>
+                   <Text style={styles.inputLabel}>{t('uploadScreen.duration')}</Text>
                    <TextInput 
                      style={styles.textInput} 
-                     placeholder="e.g. 3 days" 
+                     placeholder={t('uploadScreen.durationExample')} 
                      value={duration}
                      onChangeText={setDuration}
                    />
 
-                   <Text style={styles.inputLabel}>Comments</Text>
+                   <Text style={styles.inputLabel}>{t('uploadScreen.comments')}</Text>
                    <TextInput 
                      style={[styles.textInput, { height: 80, textAlignVertical: 'top' }]} 
-                     placeholder="Itching, bleeding..." 
+                     placeholder={t('uploadScreen.commentsExample')} 
                      multiline
                      value={comments}
                      onChangeText={setComments}
                    />
 
                    <TouchableOpacity style={styles.submitBtnMain} onPress={handleAnalyze}>
-                     <Text style={styles.submitBtnText}>Analyze Skin</Text>
+                     <Text style={styles.submitBtnText}>{t('uploadScreen.analyzeSkin')}</Text>
                    </TouchableOpacity>
                  </View>
                ) : null}
@@ -455,10 +456,10 @@ export default function UploadScreen() {
             <ActivityIndicator size="large" color="#2563EB" />
           </View>
           <Text style={styles.loadingTitle}>
-            {step === 'scanning' ? "Uploading Image..." : "Analysis Running..."}
+            {step === 'scanning' ? t('uploadScreen.uploadingImage') : t('uploadScreen.analysisRunning')}
           </Text>
           <Text style={styles.loadingText}>
-            {step === 'scanning' ? "Sending data" : "This usually takes 5-10 seconds"}
+            {step === 'scanning' ? t('uploadScreen.sendingData') : t('uploadScreen.usuallyTakes')}
           </Text>
         </View>
       </Modal>
@@ -468,8 +469,8 @@ export default function UploadScreen() {
           <View style={styles.formCard}>            
             <View style={styles.successHeader}>
                <CheckCircle size={48} color="#16A34A" />
-               <Text style={styles.successTitle}>{predictionResult || "Analysis Complete"}</Text>
-               <Text style={styles.successSub}>Please answer these follow-up questions.</Text>
+               <Text style={styles.successTitle}>{predictionResult || t('uploadScreen.analysisComplete')}</Text>
+               <Text style={styles.successSub}>{t('uploadScreen.pleaseAnswerQuestions')}</Text>
             </View>
 
             <ScrollView style={styles.formScroll}>
@@ -482,20 +483,20 @@ export default function UploadScreen() {
                           style={[styles.durationChip, userAnswers[q.id] === 'yes' && styles.durationActive]}
                           onPress={() => setUserAnswers({...userAnswers, [q.id]: 'yes'})}
                         >
-                          <Text style={[styles.durationText, userAnswers[q.id] === 'yes' && styles.textWhite]}>Yes</Text>
+                          <Text style={[styles.durationText, userAnswers[q.id] === 'yes' && styles.textWhite]}>{t('uploadScreen.yes')}</Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity 
                           style={[styles.durationChip, userAnswers[q.id] === 'no' && styles.durationActive]}
                           onPress={() => setUserAnswers({...userAnswers, [q.id]: 'no'})}
                         >
-                          <Text style={[styles.durationText, userAnswers[q.id] === 'no' && styles.textWhite]}>No</Text>
+                          <Text style={[styles.durationText, userAnswers[q.id] === 'no' && styles.textWhite]}>{t('uploadScreen.no')}</Text>
                         </TouchableOpacity>
                     </View>
                   ) : (
                     <TextInput 
                         style={styles.textArea} 
-                        placeholder="Type answer here..." 
+                        placeholder={t('uploadScreen.typeAnswerHere')} 
                         keyboardType={q.type === 'number' ? 'numeric' : 'default'}
                         onChangeText={(text) => setUserAnswers({...userAnswers, [q.id]: text})}
                       />
@@ -509,7 +510,7 @@ export default function UploadScreen() {
               onPress={submitAnswers}
               disabled={isSubmitting}
             >
-               {isSubmitting ? <ActivityIndicator color="white" /> : <Text style={styles.submitText}>Submit Analysis</Text>}
+               {isSubmitting ? <ActivityIndicator color="white" /> : <Text style={styles.submitText}>{t('uploadScreen.submitAnalysis')}</Text>}
             </TouchableOpacity>
           </View>
         </View>

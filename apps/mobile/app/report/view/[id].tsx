@@ -1,18 +1,18 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
-import { ChevronLeft, Calendar } from "lucide-react-native";
+import { Calendar, ChevronLeft } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-const API_URL = "http://172.20.10.2:8000/api";
+const API_URL = "http://10.239.178.43:8000/api";
 
 type Medication = {
   name: string;
@@ -73,7 +73,6 @@ export default function ViewReport() {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
-        {/* TOP BAR */}
         <View style={styles.topBar}>
           <TouchableOpacity onPress={() => router.back()}>
             <ChevronLeft size={26} />
@@ -82,13 +81,11 @@ export default function ViewReport() {
           <View style={{ width: 26 }} />
         </View>
 
-        {/* DIAGNOSIS */}
         <View style={styles.card}>
           <Text style={styles.label}>Diagnosis</Text>
           <Text style={styles.value}>{report.diagnosis || "-"}</Text>
         </View>
 
-        {/* HOSPITAL VISIT */}
         <View style={styles.card}>
           <Text style={styles.label}>Hospital Visit</Text>
           <View
@@ -103,7 +100,6 @@ export default function ViewReport() {
           </View>
         </View>
 
-        {/* MEDICATIONS */}
         <View style={styles.card}>
           <Text style={styles.label}>Medications</Text>
 
@@ -119,7 +115,6 @@ export default function ViewReport() {
           )}
         </View>
 
-        {/* NEXT DATE */}
         <View style={styles.card}>
           <Text style={styles.label}>Next Submission Date</Text>
 
@@ -135,7 +130,6 @@ export default function ViewReport() {
           </View>
         </View>
 
-        {/* COMMENT */}
         <View style={styles.card}>
           <Text style={styles.label}>Comment</Text>
           <Text style={styles.value}>

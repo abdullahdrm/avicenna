@@ -1,8 +1,31 @@
-import { useRouter } from 'expo-router';
-import { Activity, AlertCircle, FileText, LogOut, Pencil, Pill, Ruler, Settings, Weight } from 'lucide-react-native';
-import React from 'react';
-import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
+import * as SecureStore from 'expo-secure-store';
+import {
+    Activity,
+    AlertCircle,
+    FileText,
+    LogOut,
+    Pencil,
+    Pill,
+    Ruler,
+    Settings,
+    Weight
+} from 'lucide-react-native';
+import React, { useCallback, useState } from 'react';
+import {
+    ActivityIndicator,
+    Alert,
+    Image,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useLanguage } from '../../lib/LanguageContext';
+
+const API_URL = 'http://10.239.178.43:8000/api'; 
 
 const Card = ({ children, style }: any) => (
   <View style={[styles.card, style]}>{children}</View>
@@ -14,25 +37,136 @@ const InfoRow = ({ label, value, icon: Icon, isLast }: any) => (
       {Icon && <Icon size={16} color="#6B7280" style={{ marginRight: 8 }} />}
       <Text style={styles.infoLabel}>{label}</Text>
     </View>
-    <Text style={styles.infoValue}>{value}</Text>
+    <Text style={styles.infoValue}>{value || '-'}</Text>
   </View>
 );
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const userProfile = {
-    name: 'ee',
-    email: 'ee',
-    avatar: '',
-    gender: 'Female',
-    age: 28,
-    height: 175,
-    weight: 70,
-    skinType: 'Combination',
-    allergies: ['Penicillin', 'Peanuts'],
+  const { t } = useLanguage();
+  const [loading, setLoading] = useState(true);
+  
+  const [stats, setStats] = useState({
+    uploads: 0,
+    reports: 0,
+    days: 0, 
+  });
+
+  const [userProfile, setUserProfile] = useState({
+    name: 'Loading...',
+    email: '',
+    avatar: 'https://cdn-icons-png.flaticon.com/512/149/149071.png',
+    gender: 'Not set',
+    age: '',
+    height: '',
+    weight: '',
+    skinType: '',
+    allergies: '',
     conditions: 'None',
-    medications: 'Vitamin D',
+    medications: 'None',
+  });
+
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [])
+  );
+
+  const loadData = async () => {
+    try {
+      const token = await SecureStore.getItemAsync('access_token');
+      if (!token) {
+        router.replace('/login');
+        return;
+      }
+
+      const userJson = await SecureStore.getItemAsync('user');
+      let baseInfo = {};
+      if (userJson) {
+        const user = JSON.parse(userJson);
+        const fName = user.first_name || '';
+        const lName = user.last_name || '';
+        const displayName = `${fName} ${lName}`.trim() || user.username || 'User';
+        baseInfo = {
+          name: displayName || 'User',
+          email: user.email || '',
+        };
+      }
+
+      const headers = { 'Authorization': `Bearer ${token}` };
+
+      const profileRes = await fetch(`${API_URL}/profile/`, { headers });
+      if (profileRes.ok) {
+        const data = await profileRes.json();
+        let daysActive = 0;
+        if (data.date_joined) {
+          const joined = new Date(data.date_joined);
+          const now = new Date();
+
+          const joinedDateOnly = new Date(joined.getFullYear(), joined.getMonth(), joined.getDate());
+          const nowDateOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+          const diffTime = nowDateOnly.getTime() - joinedDateOnly.getTime();
+
+          daysActive = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        }
+
+        setUserProfile(prev => ({
+          ...prev,
+          ...baseInfo,
+          age: data.age,
+          height: data.height,
+          weight: data.weight,
+          skinType: data.skin_type,
+          allergies: data.allergies, 
+          gender: data.gender,
+          conditions: data.medical_conditions,
+          medications: data.medications,
+        }));
+        
+        setStats(prev => ({ ...prev, days: daysActive }));
+      }
+
+      const uploadsRes = await fetch(`${API_URL}/skin-analysis/`, { headers });
+      if (uploadsRes.ok) {
+        const json = await uploadsRes.json();
+        const count = Array.isArray(json) ? json.length : (json.results ? json.results.length : 0);
+        setStats(prev => ({ ...prev, uploads: count }));
+      }
+
+      const reportsRes = await fetch(`${API_URL}/patient/reports/`, { headers });
+      if (reportsRes.ok) {
+        const json = await reportsRes.json();
+        const count = Array.isArray(json) ? json.length : (json.results ? json.results.length : 0);
+        setStats(prev => ({ ...prev, reports: count }));
+      }
+
+    } catch (error) {
+      console.error("Failed to load profile data", error);
+    } finally {
+      setLoading(false);
+    }
   };
+
+  const handleLogout = async () => {
+    try {
+      await SecureStore.deleteItemAsync('access_token');
+      await SecureStore.deleteItemAsync('refresh_token');
+      await SecureStore.deleteItemAsync('user');
+      router.replace('/login'); 
+    } catch (error) {
+      console.error(error);
+      Alert.alert("Error", "Could not log out");
+    }
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={[styles.container, {justifyContent:'center', alignItems:'center'}]}>
+        <ActivityIndicator size="large" color="#2563EB" />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -40,11 +174,11 @@ export default function ProfileScreen() {
         
         <View style={styles.headerProfile}>
            <View style={styles.topBar}>
-             <Text style={styles.headerTitle}>My Profile</Text>
+             <Text style={styles.headerTitle}>{t('profileScreen.myProfile')}</Text>
              <TouchableOpacity 
-               style={styles.settingsBtn} 
-               onPress={() => router.push('/settings')}
-               >
+                style={styles.settingsBtn} 
+                onPress={() => router.push('/settings')}
+                >
                <Settings size={24} color="white" />
              </TouchableOpacity>
            </View>
@@ -64,23 +198,24 @@ export default function ProfileScreen() {
                      onPress={() => router.push('/edit-profile')}
                      >
                      <Pencil size={12} color="white" />
-                     <Text style={styles.editBtnText}>Edit Profile</Text>
+                     <Text style={styles.editBtnText}>{t('profileScreen.editProfile')}</Text>
                    </TouchableOpacity>
               </View>
            </View>
+
            <View style={styles.statsContainer}>
               <View style={styles.statItem}>
-                 <Text style={styles.statValue}>12</Text>
-                 <Text style={styles.statLabel}>UPLOADS</Text>
+                 <Text style={styles.statValue}>{stats.uploads}</Text>
+                 <Text style={styles.statLabel}>{t('profileScreen.personalDetails').toUpperCase()}</Text>
               </View>
               <View style={styles.divider} />
               <View style={styles.statItem}>
-                 <Text style={styles.statValue}>8</Text>
-                 <Text style={styles.statLabel}>REPORTS</Text>
+                 <Text style={styles.statValue}>{stats.reports}</Text>
+                 <Text style={styles.statLabel}>{t('profileScreen.medicalProfile').split('&')[0].trim().toUpperCase()}</Text>
               </View>
               <View style={styles.divider} />
               <View style={styles.statItem}>
-                 <Text style={styles.statValue}>45</Text>
+                 <Text style={styles.statValue}>{stats.days}</Text>
                  <Text style={styles.statLabel}>DAYS</Text>
               </View>
            </View>
@@ -88,38 +223,42 @@ export default function ProfileScreen() {
 
         <View style={styles.body}>
            
-           <Text style={styles.sectionTitle}>Personal Details</Text>
+           <Text style={styles.sectionTitle}>{t('profileScreen.personalDetails')}</Text>
            <Card style={styles.infoCard}>
-              <InfoRow label="Gender" value={userProfile.gender} />
-              <InfoRow label="Age" value={`${userProfile.age} years`} isLast />
+              <InfoRow label={t('profileScreen.gender')} value={userProfile.gender} />
+              <InfoRow label={t('profileScreen.age')} value={userProfile.age ? `${userProfile.age} ${t('profileScreen.years')}` : '-'} isLast />
            </Card>
-           <Text style={styles.sectionTitle}>Body Measurements</Text>
+
+           <Text style={styles.sectionTitle}>{t('profileScreen.bodyMeasurements')}</Text>
            <Card style={styles.infoCard}>
-              <InfoRow icon={Ruler} label="Height" value={`${userProfile.height} cm`} />
-              <InfoRow icon={Weight} label="Weight" value={`${userProfile.weight} kg`} isLast />
+              <InfoRow icon={Ruler} label={t('profileScreen.height')} value={userProfile.height ? `${userProfile.height} ${t('profileScreen.cm')}` : '-'} />
+              <InfoRow icon={Weight} label={t('profileScreen.weight')} value={userProfile.weight ? `${userProfile.weight} ${t('profileScreen.kg')}` : '-'} isLast />
            </Card>
-           <Text style={styles.sectionTitle}>Medical & Skin Profile</Text>
+
+           <Text style={styles.sectionTitle}>{t('profileScreen.medicalProfile')}</Text>
            <Card style={styles.infoCard}>
-              <InfoRow icon={Activity} label="Skin Type" value={userProfile.skinType} />
+              <InfoRow icon={Activity} label={t('profileScreen.skinType')} value={userProfile.skinType} />
               <InfoRow 
                 icon={AlertCircle} 
-                label="Allergies" 
-                value={userProfile.allergies.join(', ') || 'None'} 
+                label={t('profileScreen.allergies')} 
+                value={userProfile.allergies} 
               />
-              <InfoRow icon={FileText} label="Conditions" value={userProfile.conditions} />
-              <InfoRow icon={Pill} label="Medications" value={userProfile.medications} isLast />
+              <InfoRow icon={FileText} label={t('profileScreen.conditions')} value={userProfile.conditions} />
+              <InfoRow icon={Pill} label={t('profileScreen.medications')} value={userProfile.medications} isLast />
            </Card>
-           <TouchableOpacity style={styles.logoutBtn} onPress={() => router.replace('/login')}>
+
+           <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
               <LogOut size={18} color="#DC2626" />
-              <Text style={styles.logoutText}>Sign Out</Text>
+              <Text style={styles.logoutText}>{t('profileScreen.signOut')}</Text>
            </TouchableOpacity>
            
-           <Text style={styles.version}>Version 1.0.0</Text>
+           <Text style={styles.version}>{t('profileScreen.version')}</Text>
         </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F9FAFB' },
   content: { flex: 1 },

@@ -20,7 +20,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-const API_URL = "http://10.109.124.43:8000/api";
+const API_URL = "http://10.239.178.43:8000/api";
 
 const Card = ({ children, style }: any) => (
   <View style={[styles.card, style]}>{children}</View>
@@ -111,7 +111,6 @@ export default function SubmissionDetail() {
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
         
-        {/* Top Bar */}
         <View style={styles.topBar}>
           <TouchableOpacity onPress={() => router.back()}>
             <ChevronLeft size={26} color="#111827" />

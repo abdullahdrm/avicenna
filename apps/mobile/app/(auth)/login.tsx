@@ -1,117 +1,167 @@
 import { useRouter } from 'expo-router';
+import * as SecureStore from 'expo-secure-store';
 import { ArrowRight, Lock, Mail, User } from 'lucide-react-native';
 import React, { useState } from 'react';
 import { Alert, Image, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import * as SecureStore from 'expo-secure-store';
+import { useAuth } from '../_layout';
+import { useLanguage } from '../../lib/LanguageContext';
 
-
-const API_URL = 'http://172.20.10.2:8000/api'; 
+const API_URL = 'http://10.239.178.43:8000/api'; 
 
 export default function LoginScreen() {
   const router = useRouter();
+  const { setIsLoggedIn, setUserRole } = useAuth();
+  const { t } = useLanguage();
   const [isRegistering, setIsRegistering] = useState(false);
 
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
-  /* -------------------- LOGIN -------------------- */
-
-  const handleLogin = async () => {
-  if (!email || !password) {
-    Alert.alert('Error', 'Please enter username and password');
-    return;
-  }
-
-  try {
-    setLoading(true);
-
-    const response = await fetch(`${API_URL}/login/`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        username: email,
-        password: password,
-      }),
-    });
-    console.log(response);
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      Alert.alert(
-        'Login failed',
-        data.detail || 'Invalid credentials'
-      );
+  const handleLogin = async (fromRegistration = false) => {
+    if (!email || !password) {
+      Alert.alert(t('loginScreen.error'), t('auth.pleaseEnter'));
       return;
     }
 
-    await SecureStore.setItemAsync('access_token', data.access);
-    await SecureStore.setItemAsync('refresh_token', data.refresh);
-    await SecureStore.setItemAsync('user', JSON.stringify(data.user));
+    try {
+      setLoading(true);
+      const response = await fetch(`${API_URL}/login/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
 
-    if (data.user.role === 'doctor') {
-      router.replace('/(doctor)/main');
-    } else {
-      router.replace('/questionnaire');
+      const data = await response.json();
+
+      if (!response.ok) {
+        Alert.alert(t('loginScreen.loginFailed'), data.detail || t('loginScreen.invalidCredentials'));
+        return;
+      }
+
+      await SecureStore.setItemAsync('access_token', data.access);
+      await SecureStore.setItemAsync('refresh_token', data.refresh);
+      await SecureStore.setItemAsync('user', JSON.stringify(data.user));
+
+      setIsLoggedIn(true);
+      setUserRole(data.user.role);
+
+      if (data.user.role === 'doctor') {
+        router.replace('/(doctor)/main');
+      } else {
+        if (fromRegistration) {
+          router.replace('/questionnaire');
+        } else {
+          router.replace('/(tabs)'); 
+        }
+      }
+    } catch (error) {
+      Alert.alert(t('loginScreen.networkError'), t('loginScreen.cannotReachServer'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRegister = async () => {
+    if (!firstName || !lastName || !email || !password || !confirmPassword) {
+      Alert.alert(t('loginScreen.error'), t('loginScreen.fillAllFields'));
+      return;
     }
 
-  } catch (error) {
-    console.error('LOGIN ERROR:', error);
-    Alert.alert('Network error', 'Cannot reach server');
-  } finally {
-    setLoading(false);
-  }
-};
+    if (password !== confirmPassword) {
+      Alert.alert(t('loginScreen.error'), t('loginScreen.passwordMismatch'));
+      return;
+    }
 
+    if (password.length < 6) {
+      Alert.alert(t('loginScreen.error'), t('loginScreen.minPassword'));
+      return;
+    }
 
+    try {
+      setLoading(true);
+      const response = await fetch(`${API_URL}/users/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: email,
+          password: password,
+          first_name: firstName, 
+          last_name: lastName,   
+        }),
+      });
 
-  /* -------------------- UI -------------------- */
+      if (!response.ok) {
+        const data = await response.json();
+        Alert.alert(t('loginScreen.error'), data.email?.[0] || t('loginScreen.registrationFailed'));
+        return;
+      }
 
+      await handleLogin(true); 
+
+    } catch (error) {
+      Alert.alert(t('loginScreen.networkError'), t('loginScreen.registrationFailed'));
+    } finally {
+      setLoading(false);
+    }
+  };
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.content}
       >
-        {/* HEADER */}
         <View style={styles.header}>
           <Image
             source={require('../../assets/images/logo1.png')}
             style={styles.logoBox}
           />
           <Text style={styles.subtitle}>
-            Your personal skin health companion
+            {t('loginScreen.skinCompanion')}
           </Text>
         </View>
 
-        {/* FORM */}
         <View style={styles.form}>
           <Text style={styles.formTitle}>
-            {isRegistering ? 'Create Account' : 'Welcome Back'}
+            {isRegistering ? t('loginScreen.createAccount') : t('loginScreen.welcomeBack')}
           </Text>
 
           {isRegistering && (
-            <View style={styles.inputContainer}>
-              <User size={20} color="#9CA3AF" style={styles.inputIcon} />
-              <TextInput
-                placeholder="Full Name"
-                style={styles.input}
-                placeholderTextColor="#9CA3AF"
-              />
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <View style={[styles.inputContainer, { flex: 1 }]}>
+                <User size={20} color="#9CA3AF" style={styles.inputIcon} />
+                <TextInput
+                  placeholder={t('loginScreen.firstName')}
+                  style={styles.input}
+                  placeholderTextColor="#9CA3AF"
+                  value={firstName}
+                  onChangeText={setFirstName}
+                />
+              </View>
+              <View style={[styles.inputContainer, { flex: 1 }]}>
+                <TextInput
+                  placeholder={t('loginScreen.lastName')}
+                  style={[styles.input, { paddingLeft: 12 }]}
+                  placeholderTextColor="#9CA3AF"
+                  value={lastName}
+                  onChangeText={setLastName}
+                />
+              </View>
             </View>
           )}
 
           <View style={styles.inputContainer}>
             <Mail size={20} color="#9CA3AF" style={styles.inputIcon} />
             <TextInput
-              placeholder="Email / Username"
-              style={styles.input}
-              placeholderTextColor="#9CA3AF"
+              placeholder={t('loginScreen.email')}
+              keyboardType="email-address"
               autoCapitalize="none"
+              style={styles.input}
               value={email}
               onChangeText={setEmail}
             />
@@ -120,7 +170,7 @@ export default function LoginScreen() {
           <View style={styles.inputContainer}>
             <Lock size={20} color="#9CA3AF" style={styles.inputIcon} />
             <TextInput
-              placeholder="Password"
+              placeholder={t('loginScreen.password')}
               style={styles.input}
               secureTextEntry
               placeholderTextColor="#9CA3AF"
@@ -129,14 +179,41 @@ export default function LoginScreen() {
             />
           </View>
 
+          {isRegistering && (
+            <View style={styles.inputContainer}>
+              <Lock size={20} color="#9CA3AF" style={styles.inputIcon} />
+              <TextInput
+                placeholder={t('loginScreen.confirmPassword')}
+                style={styles.input}
+                secureTextEntry
+                placeholderTextColor="#9CA3AF"
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+              />
+            </View>
+          )}
+
           {!isRegistering && (
             <TouchableOpacity
               style={styles.button}
-              onPress={handleLogin}
+              onPress={() => handleLogin(false)}
               disabled={loading}
             >
               <Text style={styles.buttonText}>
-                {loading ? 'Logging in...' : 'Log In'}
+                {loading ? t('loginScreen.loggingIn') : t('loginScreen.logIn')}
+              </Text>
+              <ArrowRight size={20} color="white" />
+            </TouchableOpacity>
+          )}
+
+          {isRegistering && (
+            <TouchableOpacity
+              style={styles.button}
+              onPress={handleRegister}
+              disabled={loading}
+            >
+              <Text style={styles.buttonText}>
+                {loading ? t('loginScreen.creatingAccount') : t('loginScreen.signUp')}
               </Text>
               <ArrowRight size={20} color="white" />
             </TouchableOpacity>
@@ -148,10 +225,10 @@ export default function LoginScreen() {
           >
             <Text style={styles.switchText}>
               {isRegistering
-                ? 'Already have an account? '
-                : "Don't have an account? "}
+                ? `${t('loginScreen.alreadyHaveAccount')} `
+                : `${t('loginScreen.dontHaveAccount')} `}
               <Text style={styles.switchTextBold}>
-                {isRegistering ? 'Log In' : 'Sign Up'}
+                {isRegistering ? t('loginScreen.logIn') : t('loginScreen.signUp')}
               </Text>
             </Text>
           </TouchableOpacity>
@@ -160,7 +237,6 @@ export default function LoginScreen() {
     </SafeAreaView>
   );
 }
-
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F9FAFB' },
@@ -182,5 +258,5 @@ const styles = StyleSheet.create({
   
   switchBtn: { marginTop: 20, alignItems: 'center' },
   switchText: { color: '#323539ff', fontSize: 14 },
-  switchTextBold: { color: '#478bd8ff', fontWeight: 'bold' }
+  switchTextBold: { color: '#478bd8ff', fontWeight: 'bold' },
 });

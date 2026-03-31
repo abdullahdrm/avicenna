@@ -25,12 +25,13 @@ import {
   View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useLanguage } from '../../lib/LanguageContext';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-const BASE_URL = 'http://10.109.124.43:8000';
+const BASE_URL = 'http://10.239.178.43:8000';
 const API_URL = `${BASE_URL}/api/patient/reports/`;
 
 interface MedicalReport {
@@ -51,6 +52,7 @@ const Card = ({ children, style }: any) => (
 );
 
 export default function ReportsScreen() {
+  const { t } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<'all' | 'reviewed' | 'pending' | 'followups'>('all');
@@ -116,8 +118,8 @@ export default function ReportsScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Medical Reports</Text>
-        <Text style={styles.headerSubtitle}>View and manage your analysis history</Text>
+        <Text style={styles.headerTitle}>{t('reportsScreen.title')}</Text>
+        <Text style={styles.headerSubtitle}>{t('reportsScreen.subtitle')}</Text>
       </View>
 
       <View style={styles.filterContainer}>
@@ -126,28 +128,28 @@ export default function ReportsScreen() {
             style={[styles.filterChip, filter === 'all' && styles.filterChipActive]}
             onPress={() => setFilter('all')}
           >
-            <Text style={[styles.filterText, filter === 'all' && styles.filterTextActive]}>All ({counts.all})</Text>
+            <Text style={[styles.filterText, filter === 'all' && styles.filterTextActive]}>{t('reportsScreen.all')} ({counts.all})</Text>
           </TouchableOpacity>
 
           <TouchableOpacity 
             style={[styles.filterChip, filter === 'reviewed' && styles.filterChipActive]}
             onPress={() => setFilter('reviewed')}
           >
-            <Text style={[styles.filterText, filter === 'reviewed' && styles.filterTextActive]}>Completed ({counts.reviewed})</Text>
+            <Text style={[styles.filterText, filter === 'reviewed' && styles.filterTextActive]}>{t('reportsScreen.completed')} ({counts.reviewed})</Text>
           </TouchableOpacity>
 
           <TouchableOpacity 
             style={[styles.filterChip, filter === 'pending' && styles.filterChipActive]}
             onPress={() => setFilter('pending')}
           >
-            <Text style={[styles.filterText, filter === 'pending' && styles.filterTextActive]}>Pending ({counts.pending})</Text>
+            <Text style={[styles.filterText, filter === 'pending' && styles.filterTextActive]}>{t('reportsScreen.pending')} ({counts.pending})</Text>
           </TouchableOpacity>
 
           <TouchableOpacity 
             style={[styles.filterChip, filter === 'followups' && styles.filterChipActive]}
             onPress={() => setFilter('followups')}
           >
-            <Text style={[styles.filterText, filter === 'followups' && styles.filterTextActive]}>Follow-ups ({counts.followups})</Text>
+            <Text style={[styles.filterText, filter === 'followups' && styles.filterTextActive]}>{t('reportsScreen.followUps')} ({counts.followups})</Text>
           </TouchableOpacity>
         </ScrollView>
       </View>
@@ -177,17 +179,17 @@ export default function ReportsScreen() {
                           <Text style={styles.reportTitle}>{report.place}</Text>
                           <ChevronRight size={20} color="#9CA3AF" style={selectedReport === report.id && {transform: [{rotate: '90deg'}]}} />
                         </View>
-                        <Text style={styles.reportDate}>{isPending ? "Waiting for Doctor..." : report.doctor_name}</Text>
+                        <Text style={styles.reportDate}>{isPending ? t('reportsScreen.underReview') : report.doctor_name}</Text>
                         
                         <View style={{ flexDirection: 'row', gap: 6 }}>
                             <View style={[styles.badge, isPending ? styles.badgePending : styles.badgeSuccess]}>
                                <Text style={[styles.badgeText, isPending ? styles.textPending : styles.textSuccess]}>
-                                 {isPending ? 'Under Review' : 'Diagnosis Ready'}
+                                 {isPending ? t('reportsScreen.underReview') : t('reportsScreen.diagnosisReady')}
                                </Text>
                             </View>
                             {isFollowUp && (
                                 <View style={[styles.badge, { backgroundColor: '#DBEAFE' }]}>
-                                    <Text style={[styles.badgeText, { color: '#1E40AF' }]}>PROGRESSED</Text>
+                                    <Text style={[styles.badgeText, { color: '#1E40AF' }]}>{t('reportsScreen.progressed')}</Text>
                                 </View>
                             )}
                         </View>
@@ -199,7 +201,7 @@ export default function ReportsScreen() {
                         
                         {report.timeline_images && report.timeline_images.length > 0 && (
                            <View style={styles.detailItem}>
-                             <Text style={styles.detailLabel}>PROGRESS TIMELINE</Text>
+                             <Text style={styles.detailLabel}>{t('reportsScreen.progressTimeline')}</Text>
                              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{marginTop: 8}}>
                                 {report.timeline_images.map((img, idx) => (
                                    <View key={idx} style={{marginRight: 12, alignItems: 'center'}}>
@@ -217,31 +219,31 @@ export default function ReportsScreen() {
                         {isPending ? (
                             <View style={styles.pendingBox}>
                                 <Clock size={32} color="#D97706" style={{marginBottom: 8}}/>
-                                <Text style={styles.pendingTitle}>Analysis in Progress</Text>
-                                <Text style={styles.pendingText}>A doctor has been assigned and is reviewing your case history.</Text>
+                                <Text style={styles.pendingTitle}>{t('reportsScreen.analysisInProgress')}</Text>
+                                <Text style={styles.pendingText}>{t('reportsScreen.assignedDoctor')}</Text>
                             </View>
                         ) : (
                             <>
                                 <View style={[styles.statusBox, styles.statusBoxGreen]}>
                                    <CheckCircle size={16} color="#166534" />
-                                   <Text style={[styles.statusText, styles.textSuccess]}>Diagnosed by {report.doctor_name}</Text>
+                                   <Text style={[styles.statusText, styles.textSuccess]}>{t('reportsScreen.diagnosedBy')} {report.doctor_name}</Text>
                                 </View>
 
                                 <View style={styles.detailItem}>
-                                  <Text style={styles.detailLabel}>OFFICIAL DIAGNOSIS</Text>
+                                  <Text style={styles.detailLabel}>{t('reportsScreen.officialDiagnosis')}</Text>
                                   <Text style={styles.detailText}>{report.diagnosis}</Text>
                                 </View>
 
                                 {report.doctor_comment && (
                                   <View style={styles.detailItem}>
-                                    <Text style={styles.detailLabel}>DOCTOR'S NOTES</Text>
+                                    <Text style={styles.detailLabel}>{t('reportsScreen.doctorNotes')}</Text>
                                     <Text style={[styles.detailText, { fontStyle: 'italic' }]}>"{report.doctor_comment}"</Text>
                                   </View>
                                 )}
 
                                 {report.medications && report.medications.length > 0 && (
                                    <View style={styles.detailItem}>
-                                     <Text style={[styles.detailLabel, { color: '#D97706' }]}>MEDICATIONS</Text>
+                                     <Text style={[styles.detailLabel, { color: '#D97706' }]}>{t('reportsScreen.medications')}</Text>
                                      {report.medications.map((med, index) => (
                                         <View key={index} style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
                                            <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#D97706', marginRight: 8 }} />
@@ -254,13 +256,13 @@ export default function ReportsScreen() {
                                 {report.visit_required && (
                                   <View style={styles.alertBox}>
                                       <AlertCircle size={20} color="#DC2626" />
-                                      <Text style={styles.alertText}>Doctor recommends a hospital visit.</Text>
+                                      <Text style={styles.alertText}>{t('reportsScreen.visitRequired')}</Text>
                                   </View>
                                 )}
 
-                                <TouchableOpacity style={styles.downloadBtn} onPress={() => Alert.alert("Coming Soon", "PDF Download")}>
+                                <TouchableOpacity style={styles.downloadBtn} onPress={() => Alert.alert(t('reportsScreen.comingSoon'), t('reportsScreen.pdfDownload'))}>
                                    <Download size={16} color="#374151" />
-                                   <Text style={styles.downloadText}>Download Prescription (PDF)</Text>
+                                   <Text style={styles.downloadText}>{t('reportsScreen.downloadPrescription')}</Text>
                                 </TouchableOpacity>
                             </>
                         )}
@@ -273,8 +275,8 @@ export default function ReportsScreen() {
         ) : (
           <View style={styles.emptyState}>
             <FileText size={48} color="#D1D5DB" />
-            <Text style={styles.emptyTitle}>No reports found</Text>
-            <Text style={styles.emptyText}>Upload a photo to see it here.</Text>
+            <Text style={styles.emptyTitle}>{t('reportsScreen.noReports')}</Text>
+            <Text style={styles.emptyText}>{t('reportsScreen.uploadPhoto')}</Text>
           </View>
         )}
       </ScrollView>

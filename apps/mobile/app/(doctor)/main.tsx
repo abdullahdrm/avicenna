@@ -5,9 +5,7 @@ import React, { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-
-const API_URL = 'http://172.20.10.2:8000/api';
-
+const API_URL = 'http://10.239.178.43:8000/api';
 
 const Card = ({ children, style }: any) => (
   <View style={[styles.card, style]}>
@@ -78,7 +76,6 @@ export default function DoctorHomeScreen() {
                                <Text>Loading profile...</Text>
                              </View>
                            ):( <>
-        {/* Header */}
         <View style={styles.header}>
           <View>
             <Text style={styles.greeting}>Hello Dr. {dashboard?.doctor?.first_name} {dashboard?.doctor?.last_name}</Text>
@@ -105,8 +102,6 @@ export default function DoctorHomeScreen() {
           />
         </View>
 
-
-        {/* Quick Actions */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Quick Actions</Text>
 
@@ -131,7 +126,6 @@ export default function DoctorHomeScreen() {
           </View>
         </View>
 
-        {/* Recent Cases */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Latest Submission</Text>
@@ -187,8 +181,6 @@ export default function DoctorHomeScreen() {
     </SafeAreaView>
   );
 }
-
-// ---- STYLES ----
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F9FAFB' },

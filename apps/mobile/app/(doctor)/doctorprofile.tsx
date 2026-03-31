@@ -3,20 +3,20 @@ import * as SecureStore from 'expo-secure-store';
 import { LogOut } from 'lucide-react-native';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  Alert,
-  Image,
-  Modal,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    Alert,
+    Image,
+    Modal,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-const API_URL = 'http://172.20.10.2:8000/api';
+const API_URL = 'http://10.239.178.43:8000/api';
 
 
 const Card = ({ children, style }: any) => (
@@ -77,12 +77,15 @@ export default function DoctorProfileScreen() {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      if (!res.ok) throw new Error('Fetch failed');
+      if (res.status !== 200) {
+        console.error(`API returned status ${res.status}`);
+        return;
+      }
 
       const data = await res.json();
       setDoctorInfo(data);
     } catch (e) {
-      console.error(e);
+      console.error('Profile fetch error:', e);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -113,7 +116,6 @@ export default function DoctorProfileScreen() {
           </View>
         ) : (
           <>
-            {/* HEADER */}
             <View style={styles.headerProfile}>
               <View style={styles.profileRow}>
                 <View style={styles.avatarContainer}>
@@ -127,7 +129,6 @@ export default function DoctorProfileScreen() {
                 </View>
               </View>
 
-              {/* STATS */}
               <View style={styles.statsContainer}>
                 <Stat value={doctorInfo?.stats?.patients_count ?? 0} label="PATIENTS" />
                 <View style={styles.divider} />
@@ -137,7 +138,6 @@ export default function DoctorProfileScreen() {
               </View>
             </View>
 
-            {/* BODY */}
             <View style={styles.body}>
               <Card style={styles.infoCard}>
                 <Text style={styles.sectionTitle}>Professional Details</Text>
@@ -221,10 +221,37 @@ const EditProfileModal = ({
     setNewMaxSubmission(max_submissions_per_day ?? '');
   }, [allowed_days, max_submissions_per_day]);
 
-  const saveChanges = async () => {
+ const saveChanges = async () => {
     if (!newAllowedDays || !newMaxSubmission) {
       Alert.alert('Error', 'Both fields are required');
       return;
+    }
+
+    const dayMap: { [key: string]: string } = {
+        'monday': 'mon',
+        'tuesday': 'tue',
+        'wednesday': 'wed',
+        'thursday': 'thu',
+        'friday': 'fri',
+        'saturday': 'sat',
+        'sunday': 'sun'
+    };
+
+    const rawDays = newAllowedDays
+        .split(',')
+        .map(d => d.trim().toLowerCase())
+        .filter(d => d.length > 0);
+
+    const validDays = [];
+    for (const day of rawDays) {
+        if (dayMap[day]) {
+            validDays.push(dayMap[day]);
+        } else if (Object.values(dayMap).includes(day)) {
+            validDays.push(day);
+        } else {
+            Alert.alert("Invalid Day", `"${day}" is not a valid day. Please check spelling.`);
+            return;
+        }
     }
 
     try {
@@ -239,16 +266,20 @@ const EditProfileModal = ({
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          allowed_days: newAllowedDays,
+          allowed_days: validDays,
           max_submissions_per_day: newMaxSubmission,
         }),
       });
 
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const errText = await res.text();
+        console.log("Update Error:", errText);
+        throw new Error("Failed to update");
+      }
 
       onSaved();
       onClose();
-    } catch {
+    } catch (e) {
       Alert.alert('Error', 'Update failed');
     } finally {
       setSaving(false);
@@ -294,7 +325,6 @@ const EditProfileModal = ({
 
 
 
-// STYLES
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F9FAFB' },
   content: { flex: 1 },

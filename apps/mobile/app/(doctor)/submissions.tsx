@@ -8,6 +8,7 @@ import {
   SlidersHorizontal,
 } from 'lucide-react-native';
 
+import { useLocalSearchParams } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import React, { useCallback, useState } from 'react';
 import {
@@ -20,10 +21,9 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams } from 'expo-router';
 
 
-const API_URL = 'http://172.20.10.2:8000/api';
+const API_URL = 'http://10.239.178.43:8000/api';
 
 type StatusFilter = 'all' | 'pending' | 'reviewed';
 type DateFilter = 'all' | 'today' | 'week' | 'month' | 'year';
@@ -145,6 +145,7 @@ export default function DoctorSubmissions() {
           lastName: item.patient.last_name,
           date: item.created_at,
           status: item.status,
+          isFollowUp: item.skin_analysis?.timeline_images?.length > 1,
         }))
       );
     } catch (e) {
@@ -207,7 +208,6 @@ export default function DoctorSubmissions() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* HEADER */}
       <View style={styles.header}>
         <View>
           <Text style={styles.headerTitle}>Patient Submissions</Text>
@@ -224,7 +224,6 @@ export default function DoctorSubmissions() {
         </TouchableOpacity>
       </View>
 
-      {/* STATUS FILTER (UNCHANGED) */}
       <View style={styles.filterContainer}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           {(['all', 'pending', 'reviewed'] as StatusFilter[]).map((key) => (
@@ -249,7 +248,6 @@ export default function DoctorSubmissions() {
         </ScrollView>
       </View>
 
-      {/* LIST */}
       <ScrollView
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
@@ -306,6 +304,14 @@ export default function DoctorSubmissions() {
                       <Text style={styles.noDiagnosis}>
                         No diagnosis yet
                       </Text>
+                      <View style={{ flexDirection: 'row', gap: 6 }}>
+ 
+                        {item.isFollowUp && (
+                          <View style={[styles.badge, { backgroundColor: '#DBEAFE' }]}>
+                            <Text style={[styles.badgeText, { color: '#1E40AF' }]}>FOLLOW-UP</Text>
+                          </View>
+                        )}
+                      </View>
                       <Badge status={item.status} />
                     </View>
                   </View>
@@ -321,7 +327,6 @@ export default function DoctorSubmissions() {
         )}
       </ScrollView>
 
-      {/* DATE FILTER MODAL */}
       <Modal
         visible={dateModalOpen}
         transparent
@@ -374,8 +379,6 @@ export default function DoctorSubmissions() {
     </SafeAreaView>
   );
 }
-
-/* -------------------- STYLES -------------------- */
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F9FAFB' },

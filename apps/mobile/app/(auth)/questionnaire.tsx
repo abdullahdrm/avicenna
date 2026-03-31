@@ -1,28 +1,36 @@
-import { Href, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
+import * as SecureStore from 'expo-secure-store';
 import { ArrowLeft, ArrowRight, Calendar, Check, FileText, Info, Pill, Ruler, Weight as WeightIcon, X } from 'lucide-react-native';
 import React, { useState } from 'react';
-import { Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+const API_URL = 'http://10.239.178.43:8000/api'; 
 
 export default function QuestionnaireScreen() {
   const router = useRouter();
   const [step, setStep] = useState(1);
   const totalSteps = 5;
+  
   const [gender, setGender] = useState('');
   const [age, setAge] = useState('');
   const [height, setHeight] = useState('');
   const [weight, setWeight] = useState('');
   const [skinType, setSkinType] = useState('');
+  
   const [hasAllergies, setHasAllergies] = useState<boolean | null>(null);
   const [selectedAllergies, setSelectedAllergies] = useState<string[]>([]);
   const [allergyDetails, setAllergyDetails] = useState(''); 
+  
   const [selectedConditions, setSelectedConditions] = useState<string[]>([]);
   const [medicalConditionsOther, setMedicalConditionsOther] = useState(''); 
+  
   const [selectedMedications, setSelectedMedications] = useState<string[]>([]);
   const [medicationsOther, setMedicationsOther] = useState(''); 
-  const [showSkinHelp, setShowSkinHelp] = useState(false);
-  const genderOptions = ['Female', 'Male'];
   
+  const [showSkinHelp, setShowSkinHelp] = useState(false);
+
+  const genderOptions = ['Female', 'Male'];
   const skinTypeOptions = [
     { label: 'Normal', desc: 'Balanced, clear, not sensitive' },
     { label: 'Dry', desc: 'Rough, flaky, tight feeling' },
@@ -30,23 +38,9 @@ export default function QuestionnaireScreen() {
     { label: 'Combination', desc: 'Oily T-zone, dry cheeks' },
     { label: 'Sensitive', desc: 'Redness, itching, reactive' },
   ];
-
-  const allergyOptions = [
-    'Penicillin', 'Latex', 'Nickel (Metals)', 
-    'Fragrances', 'Sunscreen', 'Aspirin', 'Peanuts'
-  ];
-
-  const conditionOptions = [
-    'Diabetes', 'PCOS', 'Lupus', 'Herpes',
-    'Insulin Resistance', 'Thyroid Diseases', 
-    'Celiac', 'IBD', 'Chronic Kidney Disease', 'Anemia',
-    'Sjögren Syndrome' , ' Liver Disease'
-  ];
-
-  const medicationOptions = [
-    'Accutane (Isotretinoin)', 'Antibiotics', 'Birth Control', 
-    'Retinoids', 'Corticosteroids', 'Vitamins'
-  ];
+  const allergyOptions = ['Penicillin', 'Latex', 'Nickel (Metals)', 'Fragrances', 'Sunscreen', 'Aspirin', 'Peanuts'];
+  const conditionOptions = ['Diabetes', 'PCOS', 'Lupus', 'Herpes', 'Insulin Resistance', 'Thyroid Diseases', 'Celiac', 'IBD', 'Chronic Kidney Disease', 'Anemia', 'Sjögren Syndrome' , ' Liver Disease'];
+  const medicationOptions = ['Accutane (Isotretinoin)', 'Antibiotics', 'Birth Control', 'Retinoids', 'Corticosteroids', 'Vitamins'];
 
   const nextStep = () => {
     if (step < totalSteps) setStep(step + 1);
@@ -58,9 +52,60 @@ export default function QuestionnaireScreen() {
     else router.back();
   };
 
-  const handleComplete = () => {
-    router.replace('/' as Href);
-  };
+  const handleComplete = async () => {
+    try {
+      const token = await SecureStore.getItemAsync('access_token');
+      if (!token) {
+        Alert.alert("Auth Error", "You are not logged in.");
+        return;
+      }
+
+     const skinTypeMap: { [key: string]: string } = {
+  'Normal': 'normal',
+  'Dry': 'dry',
+  'Oily': 'oily',
+  'Combination': 'combination',
+  'Sensitive': 'sensitive',
+};
+
+      const formattedAllergies = hasAllergies ? formatList(selectedAllergies, allergyDetails) : 'None';
+      const formattedConditions = formatList(selectedConditions, medicalConditionsOther);
+      const formattedMedications = formatList(selectedMedications, medicationsOther);
+
+      const payload = {
+        gender: gender.toLowerCase(), 
+        age: parseInt(age) || null,
+        height: parseFloat(height) || null,
+        weight: parseFloat(weight) || null,
+        
+        skin_type: skinTypeMap[skinType] || skinType.toLowerCase(), 
+        
+        allergies: formattedAllergies === 'None' ? '' : formattedAllergies,
+        medical_conditions: formattedConditions === 'None' ? '' : formattedConditions,
+        medications: formattedMedications === 'None' ? '' : formattedMedications,
+      };
+
+      const response = await fetch(`${API_URL}/profile/`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok) {
+        router.replace('/(tabs)'); 
+      } else {
+        const errorData = await response.json();
+        console.log("Save Error:", JSON.stringify(errorData));
+        Alert.alert("Save Error", JSON.stringify(errorData));
+      }
+    } catch (error) {
+      console.error(error);
+      Alert.alert("Network Error", "Is the server running?");
+    }
+  };-
 
   const selectAndNext = (setter: any, value: any) => {
     setter(value);
@@ -91,7 +136,6 @@ export default function QuestionnaireScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-   
       <View style={styles.header}>
         <TouchableOpacity onPress={prevStep} style={styles.backButton}>
           <ArrowLeft size={24} color="#1F2937" />
@@ -329,7 +373,6 @@ export default function QuestionnaireScreen() {
                 value={medicationsOther}
                 onChangeText={setMedicationsOther}
               />
-
             </ScrollView>
 
             <TouchableOpacity style={styles.nextButton} onPress={nextStep}>
@@ -338,6 +381,7 @@ export default function QuestionnaireScreen() {
             </TouchableOpacity>
           </View>
         )}
+
         {step === 5 && (
           <View style={styles.stepContainer}>
             <Text style={styles.question}>All Set!</Text>
@@ -386,6 +430,7 @@ export default function QuestionnaireScreen() {
         )}
 
       </View>
+
       <Modal visible={showSkinHelp} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -440,10 +485,6 @@ const styles = StyleSheet.create({
   tagActive: { backgroundColor: '#EFF6FF', borderColor: '#2563EB' },
   tagText: { color: '#374151', fontSize: 14, fontWeight: '500' },
   tagTextActive: { color: '#2563EB', fontWeight: '600' },
-  optionBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 18, backgroundColor: '#F9FAFB', borderRadius: 16, marginBottom: 12, borderWidth: 1, borderColor: '#E5E7EB' },
-  optionBtnActive: { backgroundColor: '#EFF6FF', borderColor: '#2563EB' },
-  optionText: { fontSize: 16, fontWeight: '500', color: '#374151' },
-  optionTextActive: { color: '#2563EB', fontWeight: '600' },
   inputGroup: { marginBottom: 20 },
   inputWrapper: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 12, paddingHorizontal: 16, backgroundColor: '#F9FAFB' },
   inputIcon: { marginRight: 12 },

@@ -1,22 +1,22 @@
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
-import DateTimePicker from "@react-native-community/datetimepicker";
-import { ChevronLeft, Plus, Trash2, Calendar } from "lucide-react-native";
+import { Calendar, ChevronLeft, Plus, Trash2 } from "lucide-react-native";
 import React, { useState } from "react";
 import {
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    Alert,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-const API_URL = "http://172.20.10.2:8000/api";
+const API_URL = "http://10.239.178.43:8000/api";
 
 type Medication = {
   name: string;
@@ -121,7 +121,6 @@ today.setHours(0, 0, 0, 0);
           contentContainerStyle={{ paddingBottom: 40 }}
           keyboardShouldPersistTaps="handled"
         >
-          {/* TOP BAR */}
           <View style={styles.topBar}>
             <TouchableOpacity onPress={() => router.back()}>
               <ChevronLeft size={26} />
@@ -130,7 +129,6 @@ today.setHours(0, 0, 0, 0);
             <View style={{ width: 26 }} />
           </View>
 
-          {/* DIAGNOSIS */}
           <View style={styles.card}>
             <Text style={styles.label}>Diagnosis *</Text>
             <TextInput
@@ -141,7 +139,6 @@ today.setHours(0, 0, 0, 0);
             />
           </View>
 
-          {/* HOSPITAL VISIT */}
           <View style={styles.card}>
             <Text style={styles.label}>Hospital Visit *</Text>
 
@@ -168,7 +165,7 @@ today.setHours(0, 0, 0, 0);
             </View>
           </View>
 
-          {/* MEDICATIONS */}
+
           <View style={styles.card}>
             <Text style={styles.label}>Medications</Text>
 
@@ -204,8 +201,7 @@ today.setHours(0, 0, 0, 0);
             </TouchableOpacity>
           </View>
 
-          {/* NEXT DATE */}
-<View style={styles.card}>
+          <View style={styles.card}>
   <Text style={styles.label}>Next Submission Date</Text>
 
   <TouchableOpacity
@@ -237,7 +233,7 @@ today.setHours(0, 0, 0, 0);
 
 
 
-          {/* COMMENT */}
+
           <View style={styles.card}>
             <Text style={styles.label}>Comment</Text>
             <TextInput
@@ -249,7 +245,6 @@ today.setHours(0, 0, 0, 0);
             />
           </View>
 
-          {/* SUBMIT */}
           <TouchableOpacity
             style={styles.submitBtn}
             onPress={submitReport}

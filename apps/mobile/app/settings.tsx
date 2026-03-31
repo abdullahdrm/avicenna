@@ -3,6 +3,7 @@ import { ArrowLeft, Bell, ChevronRight, FileText, HelpCircle, Lock, LogOut, Moon
 import React, { useState } from 'react';
 import { ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LanguageSwitcher } from '../components/LanguageSwitcher';
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -62,6 +63,13 @@ export default function SettingsScreen() {
             value={darkMode} 
             onToggle={setDarkMode} 
           />
+        </View>
+
+        <Text style={styles.sectionHeader}>Language</Text>
+        <View style={styles.section}>
+          <View style={{ padding: 16 }}>
+            <LanguageSwitcher />
+          </View>
         </View>
 
         <Text style={styles.sectionHeader}>Support</Text>
