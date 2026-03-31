@@ -116,6 +116,16 @@ def _image_quality(image_bytes: bytes) -> ValidationResult:
     return ValidationResult(is_valid=len(reasons) == 0, reasons=reasons, details=details)
 
 
+def _decode_bgr_image(image_bytes: bytes) -> np.ndarray:
+    import cv2
+
+    np_bytes = np.frombuffer(image_bytes, np.uint8)
+    bgr_image = cv2.imdecode(np_bytes, cv2.IMREAD_COLOR)
+    if bgr_image is None:
+        raise ValueError("Could not decode image")
+    return bgr_image
+
+
 def _ml_segmentation_and_classification(image_bytes: bytes, req: AnalysisRequest) -> Tuple[Metrics, str]:
     try:
         import sys
@@ -142,48 +152,100 @@ def _ml_segmentation_and_classification(image_bytes: bytes, req: AnalysisRequest
         
         logger.info(f"General classifier detected: {detected_condition} (is_acne={is_acne}, confidence={general_result['confidence']:.2f})")
         
-        # if acne severity
+        detected_lower = str(detected_condition).lower()
+        bgr_image = _decode_bgr_image(image_bytes)
+
+        # Acne path
         if is_acne:
-            import cv2
-            import numpy as np
-            np_bytes = np.frombuffer(image_bytes, np.uint8)
-            bgr_image = cv2.imdecode(np_bytes, cv2.IMREAD_COLOR)
-            
-            if bgr_image is None:
-                raise ValueError("Could not decode image")
-            
             preprocessed_bgr, mask, score = process_image(bgr_image)
-        
+
             lesion_pixels = np.sum(mask > 0)
             total_pixels = mask.size
             lesion_ratio = lesion_pixels / total_pixels
-            
+
             _, labels, stats, _ = cv2.connectedComponentsWithStats(mask.astype(np.uint8), connectivity=8)
             lesion_count = max(0, labels.max() - 1)
-            
+
             acne_model_path = Path(__file__).parent.parent.parent / "ml" / "training" / "mobilenet_v2_best.pth"
             acne_classifier = AcneClassifier(str(acne_model_path), device='cpu')
             acne_result = acne_classifier.predict(pil_image)
-            
+
             severity_score = acne_result['severity_score']
             predicted_class = acne_result['predicted_class']
             confidence = acne_result['confidence']
-            
+
             per_region = {
                 "forehead": int(lesion_count * 0.3),
                 "left_cheek": int(lesion_count * 0.35),
                 "right_cheek": int(lesion_count * 0.35),
             }
-            
+
             return Metrics(
                 lesion_count=lesion_count,
                 severity_score=severity_score,
                 per_region=per_region,
                 extra={
                     "problem_type": f"{detected_condition} - {predicted_class}",
-                    "is_follow_up": False
+                    "is_follow_up": False,
+                    "detector": "acne",
+                    "general_confidence": float(general_result.get("confidence", 0.0)),
+                    "acne_confidence": float(confidence),
+                    "lesion_area_ratio": float(lesion_ratio),
                 }
             ), detected_condition
+
+        # Fungal path
+        if any(token in detected_lower for token in ["fungal", "tinea", "ringworm"]):
+            from fungus_model import process_fungal_infection
+
+            fungal_result = process_fungal_infection(bgr_image)
+            fungal_mask = fungal_result.get("segmentation_mask", np.zeros(bgr_image.shape[:2], dtype=np.uint8))
+            _, cc_labels, _, _ = cv2.connectedComponentsWithStats((fungal_mask > 0).astype(np.uint8), connectivity=8)
+            lesion_count = max(0, int(cc_labels.max() - 1))
+
+            return Metrics(
+                lesion_count=lesion_count,
+                severity_score=float(np.clip(fungal_result.get("texture_score", 0.0), 0.0, 1.0)),
+                per_region={"forehead": 0, "left_cheek": 0, "right_cheek": 0},
+                extra={
+                    "problem_type": detected_condition,
+                    "is_follow_up": False,
+                    "detector": "fungal",
+                    "affected_area_percentage": float(fungal_result.get("affected_area_percentage", 0.0)),
+                    "spread_radius": float(fungal_result.get("spread_radius", 0.0)),
+                    "boundary_sharpness": float(fungal_result.get("boundary_sharpness", 0.0)),
+                    "spread_pattern": str(fungal_result.get("spread_pattern", "none")),
+                    "circularity": float(fungal_result.get("circularity", 0.0)),
+                    "skin_area_percentage": float(fungal_result.get("skin_area_percentage", 0.0)),
+                },
+            ), detected_condition
+
+        # Eczema/Psoriasis/Dermatitis path
+        if any(token in detected_lower for token in ["eczema", "psoriasis", "dermatitis"]):
+            from eczema_detector import compute_metrics, segment_psoriasis_eczema
+
+            lesion_mask, debug, eczema_stats = segment_psoriasis_eczema(bgr_image)
+            eczema_metrics = compute_metrics(bgr_image, lesion_mask, debug["redness_map"])
+
+            severity_score = float(np.clip(eczema_metrics.get("lesion_area_percent_visible_skin", 0.0) / 100.0, 0.0, 1.0))
+
+            return Metrics(
+                lesion_count=int(eczema_metrics.get("n_components", 0)),
+                severity_score=severity_score,
+                per_region={"forehead": 0, "left_cheek": 0, "right_cheek": 0},
+                extra={
+                    "problem_type": detected_condition,
+                    "is_follow_up": False,
+                    "detector": "eczema_psoriasis",
+                    "lesion_area_px": int(eczema_metrics.get("lesion_area_px", 0)),
+                    "lesion_area_percent_visible_skin": float(eczema_metrics.get("lesion_area_percent_visible_skin", 0.0)),
+                    "redness_contrast_mean": float(eczema_metrics.get("redness_contrast_mean", 0.0)),
+                    "n_components": int(eczema_metrics.get("n_components", 0)),
+                    "median_skin_redness": float(eczema_stats.get("median_skin_redness", 0.0)),
+                },
+            ), detected_condition
+
+        # Generic fallback for non-acne conditions without dedicated detector
         else:
             return Metrics(
                 lesion_count=0,
