@@ -13,6 +13,7 @@ from rest_framework import status
 from .utilities import *
 from rest_framework import viewsets
 from rest_framework.views import APIView
+from rest_framework_simplejwt.authentication import JWTAuthentication
 from .model_client import call_external_ai_server
 import cv2
 import numpy as np
@@ -20,6 +21,10 @@ import random
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
+import os
+from django.conf import settings
+from django.http import FileResponse, Http404
+from rest_framework.permissions import BasePermission
 # Create your views here.
 
 
@@ -77,6 +82,18 @@ class DoctorSubmissionDetailView(RetrieveAPIView):
 
     def get_queryset(self):
         return Submission.objects.filter(doctor=self.request.user)
+    def get_object(self):
+        obj = super().get_object()
+        x_forwarded_for = self.request.META.get('HTTP_X_FORWARDED_FOR')
+        ip = x_forwarded_for.split(',')[0] if x_forwarded_for else self.request.META.get('REMOTE_ADDR')
+        MedicalAuditLog.objects.create(
+            user=self.request.user,
+            action='VIEW',
+            resource_type='Submission',
+            resource_id=str(obj.id),
+            ip_address=ip
+        )
+        return obj
 
 
 class DoctorMeView(RetrieveAPIView):
@@ -216,6 +233,9 @@ class SubmissionReportCreateView(APIView):
 
         submission.status = "reviewed"
         submission.save(update_fields=["status"])
+        if hasattr(submission, 'skin_analysis') and submission.skin_analysis:
+            submission.skin_analysis.status = "reviewed"
+            submission.skin_analysis.save(update_fields=["status"])
         try:
             patient_user = submission.patient 
             patient_id = patient_user.id 
@@ -525,3 +545,54 @@ class NotificationListView(ListAPIView):
 
     def get_queryset(self):
         return Notification.objects.filter(user=self.request.user)
+    
+class MarkNotificationReadView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, id):
+        # We make sure the user can only mark their OWN notifications as read
+        notification = get_object_or_404(Notification, id=id, user=request.user)
+        notification.is_read = True
+        notification.save(update_fields=['is_read'])
+        
+        return Response(
+            {"detail": "Notification marked as read."},
+            status=status.HTTP_200_OK
+        )
+        
+class IsAuthenticatedOrServer(BasePermission):
+    def has_permission(self, request, view):
+        ai_secret = request.headers.get('X-AI-Secret')
+        if ai_secret == 'avicenna_secure_ai_key_2026':
+            return True
+            
+        if request.user and request.user.is_authenticated:
+            return True
+
+        url_token = request.GET.get('token')
+        if url_token:
+            try:
+                jwt_authenticator = JWTAuthentication()
+                validated_token = jwt_authenticator.get_validated_token(url_token)
+                user = jwt_authenticator.get_user(validated_token)
+                if user:
+                    request.user = user 
+                    return True
+            except Exception:
+                pass 
+                
+        return False
+    
+class SecureMediaView(APIView):
+    permission_classes = [IsAuthenticatedOrServer] 
+
+    def get(self, request, file_path):
+        full_path = os.path.join(settings.MEDIA_ROOT, file_path)
+        
+        if not os.path.abspath(full_path).startswith(os.path.abspath(settings.MEDIA_ROOT)):
+            raise Http404("Invalid file path.")
+            
+        if os.path.exists(full_path):
+            return FileResponse(open(full_path, 'rb'))
+        else:
+            raise Http404("Image not found.")

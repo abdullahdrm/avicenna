@@ -33,3 +33,13 @@ class ArticleAdmin(admin.ModelAdmin):
 class DailyTipAdmin(admin.ModelAdmin):
     list_display = ('content', 'is_active')
 
+@admin.register(MedicalAuditLog)
+class MedicalAuditLogAdmin(admin.ModelAdmin):
+    list_display = ('timestamp', 'user', 'action', 'resource_type', 'resource_id', 'ip_address')
+    list_filter = ('action', 'resource_type', 'timestamp')
+    search_fields = ('user__username', 'user__email', 'resource_id', 'ip_address')
+    def has_change_permission(self, request, obj=None):
+        return False
+        
+    def has_delete_permission(self, request, obj=None):
+        return False
