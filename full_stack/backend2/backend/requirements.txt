@@ -1,0 +1,8 @@
+django
+djangorestframework
+djangorestframework-simplejwt
+django-cors-headers
+pillow
+opencv-python
+numpy
+requests
