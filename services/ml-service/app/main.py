@@ -1,5 +1,6 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from io import BytesIO
+from app.gemini_service import analyze_with_gemini
 from PIL import Image
 import torch
 import timm
@@ -117,4 +118,32 @@ async def predict(file: UploadFile = File(...)):
 
     return {
         "top3": top3
+    }
+
+@app.post("/analyze")
+async def analyze_patient(
+    patient_info: str = Form(...),
+    file: UploadFile = File(...)
+):
+    if file.content_type not in {"image/jpeg", "image/png", "image/jpg", "image/webp", "image/bmp"}:
+        raise HTTPException(status_code=415, detail=f"Unsupported content-type: {file.content_type}")
+
+    image_bytes = await file.read()
+    
+    # 1. Image nesnesine çevir (Gemini için)
+    try:
+        img = Image.open(BytesIO(image_bytes)).convert("RGB")
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid image file.")
+
+    # 2. PyTorch'tan ilk 3 tahmin
+    top3 = predict_top3(image_bytes)
+
+    # 3. Gemini analizi
+    gemini_analysis = analyze_with_gemini(img, patient_info, top3)
+
+    return {
+        "status": "success",
+        "top3": top3,
+        "gemini_analysis": gemini_analysis
     }

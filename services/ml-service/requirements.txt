@@ -5,3 +5,5 @@ pillow
 torch
 torchvision
 timm
+google-generativeai
+python-dotenv
