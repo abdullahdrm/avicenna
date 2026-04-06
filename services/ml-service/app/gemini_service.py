@@ -1,5 +1,6 @@
 import os
 import re
+import json
 import google.generativeai as genai
 from PIL import Image
 from dotenv import load_dotenv
@@ -18,27 +19,52 @@ else:
 SYSTEM_INSTRUCTION = """
 You are a conservative dermatology assistant used for doctor support.
 
-Return ONLY plain English text.
-Do NOT return JSON.
-Do NOT return markdown.
-Do NOT return bullet points.
-Do NOT use headings.
-Do NOT mention hidden reasoning.
-Do NOT mention chain-of-thought.
-Do NOT mention probabilities in the final answer.
-Do NOT mention that you corrected or summarized the complaint.
+You must reply with a valid JSON object. Do not include markdown formatting like ```json.
+The JSON object must strictly follow this structure:
+{
+  "analysis": "Your 4-paragraph plain English text...",
+  "detailed_class": "The most specific condition inferred (e.g. 'acne vulgaris', 'healthy')",
+  "detailed_probability": 0.95,
+  "short_class": "A constrained class name from the approved list",
+  "short_probability": 0.95
+}
 
-Before answering, silently do all of the following:
+Short Class Rules:
+The "short_class" value MUST be exactly ONE of the following words:
+- acne
+- eczema
+- psoriasis
+- fungal
+- ringworm
+- tinea
+- hives
+- urticaria
+- dermatitis
+- rosacea
+- others
+
+If the condition is healthy, undetected, undetermined, or anything else not explicitly listed above, you MUST return "others" for "short_class".
+
+Analysis Formatting Rules:
+- The "analysis" field MUST be plain English text.
+- Do NOT use markdown in the analysis field.
+- Do NOT use bullet points or headings in the analysis field.
+- Do NOT mention hidden reasoning or probabilities in the analysis field.
+- Do NOT mention that you corrected or summarized the complaint in the analysis field.
+
+Before answering, silently do all of the following (do not include these steps in the text):
 1) Correct obvious spelling mistakes in the patient's complaint.
 2) Normalize and summarize the complaint into a short internal clinical impression.
 3) Determine whether the uploaded image is actually relevant to dermatology.
 
 Image relevance rules:
-- If the uploaded content is not a dermatology-relevant skin image, return exactly:
+- If the uploaded content is not a dermatology-relevant skin image, your "analysis" text must be exactly:
   The most likely condition is undetected. The uploaded content does not appear to be a relevant dermatology image.
+  In this case, set "detailed_class" to "undetected" and "short_class" to "others".
 - Examples of irrelevant content include x-rays, CT scans, MRI scans, screenshots, documents, math problems, charts, random objects, or non-skin photos with no visible skin lesion.
-- If the image is too blurry, too dark, too cropped, too distant, or otherwise not reliable for skin assessment, return exactly:
+- If the image is too blurry, too dark, too cropped, too distant, or otherwise not reliable for skin assessment, your "analysis" text must be exactly:
   The most likely condition is undetected. The image quality is not sufficient for a reliable dermatology assessment.
+  In this case, set "detailed_class" to "undetected" and "short_class" to "others".
 
 Diagnostic rules:
 - Use the image as the primary evidence.
@@ -54,20 +80,17 @@ Diagnostic rules:
 - If the case is skin-related but too ambiguous for one reliable label, say:
   The most likely condition is undetermined.
 
-Output format rules:
-- If the image is irrelevant or too poor quality, return only the exact undetected response and nothing else.
-- Otherwise return exactly 4 short paragraphs.
+Output format rules for "analysis":
+- If the image is irrelevant or too poor quality, return only the exact undetected response as described above.
+- Otherwise, the "analysis" field must contain exactly 4 short paragraphs.
 - Paragraph 1 (Diagnosis): Must start exactly with "The most likely condition is ...". State the broad umbrella diagnosis and a more specific clinical subtype if reasonably supported. Keep it to 2-3 sentences.
 - Paragraph 2 (Model Evaluation): Critically evaluate the external classifier's top predictions. Explicitly state whether you agree or disagree, supporting your stance with visual and symptomatic evidence. Keep it to 3-4 sentences.
-- Paragraph 3 (Clinical Reasoning): Provide a deeper scientific justification. Connect the specific visual findings (e.g., purulent pustules, annular scaling) with the patient's reported symptoms, and briefly explain why other common conditions were ruled out. Keep it to 3-5 sentences.
-- Paragraph 4 (Treatment Approach): Suggest a concise, conservative treatment strategy. Mention general skin care, potential topical or systemic approaches if applicable, and advise a dermatology review. Keep it to 3-5 sentences.
-- Do not use headings like "Reasoning" or "Model output". Do NOT use markdown formatting.
+- Paragraph 3 (Clinical Reasoning): Provide a deeper scientific justification. Connect the specific visual findings with the patient's reported symptoms, and briefly explain why other common conditions were ruled out. Keep it to 3-5 sentences.
+- Paragraph 4 (Treatment Approach): Suggest a concise, conservative treatment strategy. Mention general skin care, potential topical or systemic approaches, and advise a dermatology review. Keep it to 3-5 sentences.
 
 Specificity rules:
 - Prefer a broad umbrella label first, because the same output may also be shown to the patient.
 - Add a more specific subtype only if it is reasonably supported by the current image and current complaint.
-- Example:
-  The most likely condition is eczema. More specifically, this appears most consistent with contact dermatitis.
 - Do not force a subtype if the subtype is uncertain.
 
 Advice rules:
@@ -129,13 +152,17 @@ def clean_response(text: str) -> str:
 
     return "\n\n".join(final_paragraphs)
 
-def analyze_with_gemini(image: Image.Image, patient_info: str, top3_predictions: list) -> str:
+def analyze_with_gemini(image: Image.Image, patient_info: str, top3_predictions: list) -> dict:
     """
     Hastanın resmi, doktor/sistem notları(patient_info) ve PyTorch modelinin(Top-3)
     tahminini birleştirerek Gemini'ye gönderir. Colab'daki spesifik prompt kullanılır.
     """
     if not GEMINI_API_KEY:
-        return "Hata: Sunucuda GEMINI_API_KEY tanımlı değil."
+        return {
+            "gemini_analysis": "Hata: Sunucuda GEMINI_API_KEY tanımlı değil.",
+            "gemini_final_response": {"class": "error", "probability": 0.0},
+            "gemini_final_response_form": {"class": "error", "probability": 0.0}
+        }
 
     classifier_summary_lines = []
     for rank, item in enumerate(top3_predictions, start=1):
@@ -150,13 +177,13 @@ Task:
 - Use the image as the main evidence and the patient information as supporting context.
 - Treat the external classifier output as secondary support only; do not follow it blindly.
 - If the upload is irrelevant to dermatology, return the exact undetected response.
-- If the image is dermatology-related but still too uncertain for one reliable diagnosis, say:
+- If the case is skin-related but too ambiguous for one reliable diagnosis, say:
   The most likely condition is undetermined.
 - Start with a broad umbrella diagnosis that is easier for a patient to understand.
 - Then, if supported, add a more specific clinical subtype or detail that may help the doctor.
 - If a past condition is relevant and consistent with the current image and symptoms, you may mention that it could support recurrence or clinical context.
 - Do not focus only on history; the current image must remain primary.
-- Construct the output in exactly 4 paragraphs (Diagnosis, Model Evaluation, Clinical Reasoning, Treatment Approach).
+- Construct the text in exactly 4 paragraphs (Diagnosis, Model Evaluation, Clinical Reasoning, Treatment Approach) and place it in the "analysis" field of the JSON.
 
 Classifier accuracy is %71.5, so be careful about result.
 External dermatology classifier top predictions:
@@ -178,64 +205,54 @@ Patient information:
     try:
         model = genai.GenerativeModel(
             'gemini-2.5-flash',
-            system_instruction=SYSTEM_INSTRUCTION
+            system_instruction=SYSTEM_INSTRUCTION,
+            generation_config={"response_mime_type": "application/json"}
         )
         
         response = model.generate_content([prompt, image])
         
-        return clean_response(response.text)
+        text = response.text.strip()
+        if text.startswith("```"):
+            text = text.strip("` \n")
+            if text.lower().startswith("json"):
+                text = text[4:].strip()
+                
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError:
+            data = {
+                "analysis": text,
+                "detailed_class": "undetected",
+                "detailed_probability": 0.0,
+                "short_class": "others",
+                "short_probability": 0.0
+            }
+            
+        analysis_text = clean_response(data.get("analysis", ""))
+        detailed_class = data.get("detailed_class", "others")
+        try:
+            detailed_prob = float(data.get("detailed_probability", 0.0))
+        except:
+            detailed_prob = 0.0
+            
+        short_class = data.get("short_class", "others").lower()
+        if short_class not in ['acne', 'eczema', 'psoriasis', 'fungal', 'ringworm', 'tinea', 'hives', 'urticaria', 'dermatitis', 'rosacea', 'others']:
+            short_class = 'others'
+            
+        try:
+            short_prob = float(data.get("short_probability", 0.0))
+        except:
+            short_prob = 0.0
+            
+        return {
+            "gemini_analysis": analysis_text,
+            "gemini_final_response": {"class": detailed_class, "probability": detailed_prob},
+            "gemini_final_response_form": {"class": short_class, "probability": short_prob}
+        }
     except Exception as e:
-        return f"Gemini API Hatası: {str(e)}"
-
-def get_gemini_only_class(report: str) -> str:
-    """
-    Verilen hasta değerlendirme raporunu ('report') analiz eder ve 
-    en olası hastalık sınıfını döner.
-    Dönebileceği sınıflar: 'acne', 'eczema', 'psoriasis', 'fungus', 'others'
-    """
-    if not GEMINI_API_KEY:
-        return "error: GEMINI_API_KEY tanımlı değil."
-
-    prompt = f"""
-Sen uzman bir tıp asistanısın. Aşağıda hasta için hazırlanmış bir değerlendirme raporu yer almaktadır.
-Görevin, bu raporu okumak ve sonuçta hastanın taşıdığı düşünülen hastalık türünü değerlendirp SADECE TEK BİR KELİME çıktısı vermektir.
-
-Sadece ve sadece şu kelimelerden BİRİNİ çıktı olarak vermelisin:
-- acne
-- eczema
-- psoriasis
-- fungus
-- others
-
-Kurallar:
-- Eğer raporda egzema tabanlı bir teşhis varsa 'eczema' dön.
-- Eğer raporda sedef hastalığı (psoriasis) veya benzeri bir teşhis varsa 'psoriasis' dön.
-- Eğer raporda mantar enfeksiyonu (tinea vb.) varsa 'fungus' dön.
-- Eğer raporda akne (acne) teşhisi varsa 'acne' dön.
-- Eğer kişi sağlıklıysa, hastalık tespit edilmemişse veya yukarıdakiler dışında tamamen farklı bir sorun varsa 'others' dön.
-
-KESİNLİKLE SADECE TEK BİR KELİME DÖN. NOKTALAMA İŞARETİ KULLANMA. AÇIKLAMA YAPMA.
-
-Değerlendirme Raporu:
-{report}
-"""
-
-    try:
-        model = genai.GenerativeModel('gemini-2.5-flash')
-        # Sadece metin gönderdiğimiz için generate_content'e direkt promptu verebiliriz
-        response = model.generate_content(prompt)
-        
-        # Gelen yanıtı temizle ve küçük harfe çevir
-        class_name = response.text.strip().lower()
-        
-        # Model açıklama vb. bir şey üretirse içinden kelimeyi bulmaya çalışalım
-        allowed_classes = ['acne', 'eczema', 'psoriasis', 'fungus', 'others']
-        for allowed in allowed_classes:
-            if allowed in class_name:
-                return allowed
-        
-        # Hiçbiri eşleşmezse others dön
-        return "others"
-    except Exception as e:
-        return f"error"
+        return {
+            "gemini_analysis": f"Gemini API Hatası: {str(e)}",
+            "gemini_final_response": {"class": "error", "probability": 0.0},
+            "gemini_final_response_form": {"class": "error", "probability": 0.0}
+        }
 

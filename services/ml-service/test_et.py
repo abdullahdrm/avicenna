@@ -38,24 +38,7 @@ def main():
                 json_cevap = response.json()
                 print("\n✅ API'DEN GELEN 1. BAŞARILI CEVAP (/analyze):\n")
                 print(json.dumps(json_cevap, indent=4, ensure_ascii=False))
-                
-                # Gemini Tarafından Üretilen Uzun Raporu Al
-                gemini_report = json_cevap.get("gemini_analysis", "")
-                
-                if gemini_report:
-                    print("\n3. Sınıflandırma İçin /gemini_only_class Endpoint'ine İstek Gönderiliyor...")
-                    class_data = {"report": gemini_report}
-                    class_url = "http://127.0.0.1:8000/gemini_only_class"
-                    class_response = requests.post(class_url, json=class_data)
-                    
-                    if class_response.status_code == 200:
-                        class_json = class_response.json()
-                        print("\n✅ API'DEN GELEN 2. BAŞARILI CEVAP (/gemini_only_class):\n")
-                        print(json.dumps(class_json, indent=4, ensure_ascii=False))
-                    else:
-                        print(f"❌ HATA! Sınıflandırma API'si {class_response.status_code} kodu döndü.")
-                else:
-                    print("Uyarı: 'gemini_analysis' alanı boş geldiği için sınıflandırma yapılamadı.")
+
 
             else:
                 print(f"❌ HATA! API {response.status_code} kodu döndü.")
