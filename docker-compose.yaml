@@ -1,0 +1,67 @@
+services:
+  ml-service:
+    build:
+      context: .
+      dockerfile: ./services/ml-service/Dockerfile
+    container_name: ml-service
+    ports:
+      - "9000:8000"
+    env_file:
+      - ./services/ml-service/.env
+    networks:
+      - avicenne-network
+
+#  service-b:
+#    build:
+#      context: .
+#      dockerfile: ./service-b/Dockerfile
+#    container_name: service-b
+#    ports:
+#      - "5002:8080"
+#    env_file:
+#      - .env
+#    depends_on:
+#      db:
+#        condition: service_healthy
+#    networks:
+#      - avicenne-network
+
+#  frontend:
+#    build:
+#      context: .
+#      dockerfile: ./frontend/Dockerfile
+#    container_name: frontend
+#    ports:
+#      - "3000:3000"
+#    env_file:
+#      - .env
+#    depends_on:
+#      - service-a
+#      - service-b
+#    networks:
+#      - avicenne-network
+
+#  db:
+#    image: postgres:18
+#    container_name: monorepo-db
+#    environment:
+#      POSTGRES_DB: appdb
+#      POSTGRES_USER: appuser
+#      POSTGRES_PASSWORD: secret
+#    ports:
+#      - "5432:5432"
+#    volumes:
+#      - db_data:/var/lib/postgresql/data
+#    healthcheck:
+#      test: ["CMD-SHELL", "pg_isready -U appuser -d appdb"]
+#      interval: 10s
+#      timeout: 5s
+#      retries: 5
+#    networks:
+#      - avicenne-network
+
+networks:
+  avicenne-network:
+  
+#volumes:
+#  db_data:
