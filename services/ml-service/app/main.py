@@ -147,3 +147,19 @@ async def analyze_patient(
         "top3": top3,
         "gemini_analysis": gemini_analysis
     }
+
+from pydantic import BaseModel
+from app.gemini_service import get_gemini_only_class
+
+class ReportClassifyRequest(BaseModel):
+    report: str
+
+@app.post("/gemini_only_class")
+async def gemini_only_class_endpoint(request: ReportClassifyRequest):
+    """
+    Verilen hasta değerlendirme raporunu (text) alır, Gemini kullanarak analiz eder 
+    ve geriye sadece tek bir hastalık sınıfı ismini döner:
+    (acne, eczema, psoriasis, fungus, others)
+    """
+    result = get_gemini_only_class(request.report)
+    return {"class": result}

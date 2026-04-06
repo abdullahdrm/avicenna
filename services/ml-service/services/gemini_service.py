@@ -204,14 +204,26 @@ Sadece ve sadece şu kelimelerden BİRİNİ çıktı olarak vermelisin:
 - acne
 - eczema
 - psoriasis
-- fungus
+- fungal
+- ringworm
+- tinea
+- hives
+- urticaria
+- dermatitis
+- rosacea
 - others
 
 Kurallar:
 - Eğer raporda egzema tabanlı bir teşhis varsa 'eczema' dön.
-- Eğer raporda sedef hastalığı (psoriasis) veya benzeri bir teşhis varsa 'psoriasis' dön.
-- Eğer raporda mantar enfeksiyonu (tinea vb.) varsa 'fungus' dön.
+- Eğer raporda sedef hastalığı (psoriasis) veya benzeri tabanlı bir teşhis varsa 'psoriasis' dön.
+- Eğer raporda mantar enfeksiyonu varsa 'fungus' dön.
 - Eğer raporda akne (acne) teşhisi varsa 'acne' dön.
+- Eğer raporda hives tabanlı bir teşhis varrsa 'hives' dön.
+- Eğer raporda rosacea tabanlı bir teşhis varrsa 'rosacea' dön.
+- Eğer raporda urticaria tabanlı bir teşhis varrsa 'urticaria' dön.
+- Eğer raporda dermatitis tabanlı bir teşhis varrsa 'dermatitis' dön.
+- Eğer raporda ringworm tabanlı bir teşhis varrsa 'ringworm' dön.
+- Eğer raporda tinea tabanlı bir teşhis varrsa 'tinea' dön. 
 - Eğer kişi sağlıklıysa, hastalık tespit edilmemişse veya yukarıdakiler dışında tamamen farklı bir sorun varsa 'others' dön.
 
 KESİNLİKLE SADECE TEK BİR KELİME DÖN. NOKTALAMA İŞARETİ KULLANMA. AÇIKLAMA YAPMA.
