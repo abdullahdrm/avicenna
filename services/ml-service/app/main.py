@@ -116,8 +116,13 @@ async def predict(file: UploadFile = File(...)):
     image_bytes = await file.read()
     top3 = predict_top3(image_bytes)
 
+    model_output = {
+        "class_name": top3[0]["class_name"],
+        "probability": float(f"{top3[0]['probability']:.2f}")
+    }
+
     return {
-        "top3": top3
+        "model": model_output
     }
 
 @app.post("/analyze")
@@ -142,9 +147,14 @@ async def analyze_patient(
     # 3. Gemini analizi
     gemini_result = analyze_with_gemini(img, patient_info, top3)
 
+    model_output = {
+        "class_name": top3[0]["class_name"],
+        "probability": float(f"{top3[0]['probability']:.2f}")
+    }
+
     return {
         "status": "success",
-        "top3": top3,
+        "model": model_output,
         "gemini_analysis": gemini_result["gemini_analysis"],
         "gemini_final_response": gemini_result.get("gemini_final_response"),
         "gemini_final_response_form": gemini_result.get("gemini_final_response_form")
