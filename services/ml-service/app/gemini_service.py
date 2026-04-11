@@ -49,9 +49,10 @@ Analysis Formatting Rules:
 - The "analysis" field MUST be plain English text.
 - Do NOT use markdown in the analysis field.
 - Do NOT use bullet points or headings in the analysis field.
-- Do NOT mention hidden reasoning or probabilities in the analysis field.
+- Do NOT mention numerical probabilities explicitly in the analysis text itself.
 - Do NOT mention that you corrected or summarized the complaint in the analysis field.
-- Do NOT explicitly use terms like "top prediction", "first prediction", "second prediction", or "third prediction". Refer to the model outputs collectively (e.g., "The model suggested X", "Another considered condition was Y").
+- The end-user ONLY SEES the model's PRIMARY (First/Top-1) prediction. They DO NOT see the 2nd or 3rd predictions.
+- Therefore, you MUST refer to the 1st item as the "model's primary prediction" or "model's output". If you discuss the 2nd or 3rd items, you MUST explicitly frame them as alternative hidden suggestions (e.g., "Although the model's primary prediction was X, its alternative underlying suggestion of Y is actually more accurate...").
 
 Before answering, silently do all of the following (do not include these steps in the text):
 1) Correct obvious spelling mistakes in the patient's complaint.
@@ -76,16 +77,21 @@ Diagnostic rules:
 - Do not rely mainly on past medical history.
 - Past medical history may support recurrence only if the current image and present symptoms are also compatible with that condition.
 - Ignore unrelated past conditions if they do not fit the current image and complaint.
-- If the image clearly shows normal skin with no meaningful abnormality, you may say:
-  The most likely condition is healthy skin.
+- If the image clearly shows normal skin with no meaningful abnormality, your "analysis" text must be exactly:
+  The most likely condition is healthy skin. There are no clear dermatological abnormalities visible.
+  In this case, set "detailed_class" to "healthy" and "short_class" to "others".
 - If the case is skin-related but too ambiguous for one reliable label, say:
   The most likely condition is undetermined.
 
 Output format rules for "analysis":
-- If the image is irrelevant or too poor quality, return only the exact undetected response as described above.
+- If the image is irrelevant, poor quality, or shows clearly healthy skin, return only the exact 1-2 sentence response as described above.
 - Otherwise, the "analysis" field must contain exactly 4 short paragraphs.
 - Paragraph 1 (Diagnosis): Must start exactly with "The most likely condition is ...". State the broad umbrella diagnosis and a more specific clinical subtype if reasonably supported. Keep it to 2-3 sentences.
-- Paragraph 2 (Model Evaluation): Critically evaluate the model's suggested conditions without revealing their exact rank. Explicitly state whether you agree or disagree, supporting your stance with visual and symptomatic evidence. Keep it to 3-4 sentences.
+- Paragraph 2 (Model Evaluation): Critically evaluate the model's primary prediction (the 1st item) taking into account its probability. 
+  * If you AGREE with the primary prediction: State your agreement and support it with visual/symptomatic evidence.
+  * If you DISAGREE and the primary prediction's probability is < 50%: Explain why the model might have made this mistake and what visual features it likely overlooked.
+  * If you DISAGREE and the primary prediction's probability is >= 50%: Provide a MUCH MORE DETAILED explanation of why you disagree despite the model's strong confidence. Explicitly justify why the model's primary output cannot be trusted in this specific case based on contradictory clinical signs.
+  * In all disagreement cases, if an alternative prediction (2nd or 3rd) is correct, acknowledge it explicitly (e.g., "While the model's primary prediction was [1st], its alternative suggestion of [2nd] is actually correct because...").
 - Paragraph 3 (Clinical Reasoning): Provide a deeper scientific justification. Connect the specific visual findings with the patient's reported symptoms, and briefly explain why other common conditions were ruled out. Keep it to 3-5 sentences.
 - Paragraph 4 (Treatment Approach): Suggest a concise, conservative treatment strategy. Mention general skin care, potential topical or systemic approaches, and advise a dermatology review. Keep it to 3-5 sentences.
 
@@ -111,6 +117,11 @@ UNDETECTED_QUALITY = (
     "The image quality is not sufficient for a reliable dermatology assessment."
 )
 
+HEALTHY_SKIN = (
+    "The most likely condition is healthy skin. "
+    "There are no clear dermatological abnormalities visible."
+)
+
 def _limit_sentences(text: str, max_sentences: int) -> str:
     text = re.sub(r"\s+", " ", text).strip()
     parts = re.split(r'(?<=[.!?])\s+', text)
@@ -128,7 +139,7 @@ def clean_response(text: str) -> str:
     s = re.sub(r"```$", "", s).strip()
 
     s = s.strip()
-    if s == UNDETECTED_IRRELEVANT or s == UNDETECTED_QUALITY:
+    if s == UNDETECTED_IRRELEVANT or s == UNDETECTED_QUALITY or s == HEALTHY_SKIN:
         return s
 
     # split into paragraphs if present
@@ -190,10 +201,10 @@ Classifier accuracy is %71.5, so be careful about result.
 External dermatology classifier top predictions:
 {classifier_summary}
 
-Preferred style example:
+Preferred style example (assuming model's primary prediction is Eczema with >50% probability):
 The most likely condition is eczema. More specifically, this appears most consistent with contact dermatitis of the hands. The overall clinical presentation strongly suggests an environmental irritant etiology rather than a primary infectious process.
 
-The model correctly suggested "Eczema Photos" based on the visual features. Although it also considered "Tinea Ringworm Candidiasis", the characteristic raised scaly borders of a fungal infection are absent here. Therefore, the eczema prediction is visually and symptomatically supported.
+The model's primary prediction of "Eczema Photos" is highly accurate and supported by the visual features. Although its alternative underlying suggestion was "Tinea Ringworm Candidiasis", the characteristic raised scaly borders of a fungal infection are absent here. Therefore, the eczema prediction is visually and symptomatically confirmed.
 
 Clinical analysis reveals ill-defined erythematous plaques with deep fissures across the palmar surfaces. These visual findings, combined with the patient's reported worsening after frequent detergent exposure and intense localized pruritus, confidently rule out systemic conditions. Psoriasis is less likely due to the lack of distinct silvery scaling.
 
