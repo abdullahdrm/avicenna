@@ -639,7 +639,7 @@ class SecureMediaView(APIView):
 
 
 class ChatView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticatedOrServer]
 
     def post(self, request):
 
@@ -650,5 +650,11 @@ class ChatView(APIView):
             "messages": [HumanMessage(content=user_prompt)]
         })
 
-        answer = result["messages"][-1].content
-        return Response({"answer": answer})
+        last_message = result["messages"][-1]
+        answer = last_message.content
+
+        if "text" in answer[0]:
+            answer = answer[0]["text"]
+            return Response({"answer": answer})
+
+        return Response({"answer": str(answer)})
