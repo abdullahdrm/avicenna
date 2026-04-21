@@ -3,11 +3,9 @@ import json
 import os
 
 # 1. API Adresimiz: FastAPI sunucusunun çalıştığı adres.
-# (Sunucuyu terminalden uvicorn app.main:app komutuyla başlattığınızda genellikle localhost:8000 olur)
 URL = "http://127.0.0.1:8000/analyze"
 
 # 2. Resminizin Yolu: "test_et.py" dosyası ile aynı klasörde "ornek_resim.jpg" adında bir resim olması beklenir.
-# Eğer resmin adı farklıysa buradaki 'ornek_resim.jpg' yazısını değiştirin.
 RESIM_YOLU = "ornek_resim.jpg"
 
 def main():
@@ -36,12 +34,12 @@ def main():
             # API'den gelen statü kodunu kontrol edelim (200 Başarılı demektir)
             if response.status_code == 200:
                 json_cevap = response.json()
-                print("\n✅ API'DEN GELEN 1. BAŞARILI CEVAP (/analyze):\n")
+                print("\n API'DEN GELEN 1. BAŞARILI CEVAP (/analyze):\n")
                 print(json.dumps(json_cevap, indent=4, ensure_ascii=False))
 
 
             else:
-                print(f"❌ HATA! API {response.status_code} kodu döndü.")
+                print(f" HATA! API {response.status_code} kodu döndü.")
                 print(response.text)
 
     except Exception as e:

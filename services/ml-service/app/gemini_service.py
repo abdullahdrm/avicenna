@@ -5,10 +5,10 @@ import google.generativeai as genai
 from PIL import Image
 from dotenv import load_dotenv
 
-# .env dosyasından çevresel değişkenleri yükle
+
 load_dotenv()
 
-# Gemini yapılandırması
+
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 if GEMINI_API_KEY:
