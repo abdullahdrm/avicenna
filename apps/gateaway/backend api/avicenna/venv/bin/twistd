@@ -1,0 +1,8 @@
+#!/bin/sh
+'''exec' "/home/cankut/Desktop/avicenna/apps/gateaway/backend api/avicenna/venv/bin/python" "$0" "$@"
+' '''
+import sys
+from twisted.scripts.twistd import run
+if __name__ == '__main__':
+    sys.argv[0] = sys.argv[0].removesuffix('.exe')
+    sys.exit(run())
