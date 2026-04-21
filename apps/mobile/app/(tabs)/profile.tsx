@@ -1,31 +1,31 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import {
-    Activity,
-    AlertCircle,
-    FileText,
-    LogOut,
-    Pencil,
-    Pill,
-    Ruler,
-    Settings,
-    Weight
+  Activity,
+  AlertCircle,
+  FileText,
+  LogOut,
+  Pencil,
+  Pill,
+  Ruler,
+  Settings,
+  Weight
 } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLanguage } from '../../lib/LanguageContext';
 
-const API_URL = 'http://10.239.178.43:8000/api'; 
+const API_URL = 'http://10.66.131.43:8000/api'; 
 
 const Card = ({ children, style }: any) => (
   <View style={[styles.card, style]}>{children}</View>
@@ -160,6 +160,25 @@ export default function ProfileScreen() {
     }
   };
 
+  const getGenderDisplay = (genderValue: string) => {
+    const genderMap: { [key: string]: string } = {
+      'female': t('questionnaireScreen.female'),
+      'male': t('questionnaireScreen.male'),
+    };
+    return genderMap[genderValue?.toLowerCase()] || genderValue || '-';
+  };
+
+  const getSkinTypeDisplay = (skinTypeValue: string) => {
+    const skinTypeMap: { [key: string]: string } = {
+      'normal': t('questionnaireScreen.normal'),
+      'dry': t('questionnaireScreen.dry'),
+      'oily': t('questionnaireScreen.oily'),
+      'combination': t('questionnaireScreen.combination'),
+      'sensitive': t('questionnaireScreen.sensitive'),
+    };
+    return skinTypeMap[skinTypeValue?.toLowerCase()] || skinTypeValue || '-';
+  };
+
   if (loading) {
     return (
       <SafeAreaView style={[styles.container, {justifyContent:'center', alignItems:'center'}]}>
@@ -216,7 +235,7 @@ export default function ProfileScreen() {
               <View style={styles.divider} />
               <View style={styles.statItem}>
                  <Text style={styles.statValue}>{stats.days}</Text>
-                 <Text style={styles.statLabel}>DAYS</Text>
+                 <Text style={styles.statLabel}>{t('profileScreen.days').toUpperCase()}</Text>
               </View>
            </View>
         </View>
@@ -225,7 +244,7 @@ export default function ProfileScreen() {
            
            <Text style={styles.sectionTitle}>{t('profileScreen.personalDetails')}</Text>
            <Card style={styles.infoCard}>
-              <InfoRow label={t('profileScreen.gender')} value={userProfile.gender} />
+              <InfoRow label={t('profileScreen.gender')} value={getGenderDisplay(userProfile.gender)} />
               <InfoRow label={t('profileScreen.age')} value={userProfile.age ? `${userProfile.age} ${t('profileScreen.years')}` : '-'} isLast />
            </Card>
 
@@ -237,7 +256,7 @@ export default function ProfileScreen() {
 
            <Text style={styles.sectionTitle}>{t('profileScreen.medicalProfile')}</Text>
            <Card style={styles.infoCard}>
-              <InfoRow icon={Activity} label={t('profileScreen.skinType')} value={userProfile.skinType} />
+              <InfoRow icon={Activity} label={t('profileScreen.skinType')} value={getSkinTypeDisplay(userProfile.skinType)} />
               <InfoRow 
                 icon={AlertCircle} 
                 label={t('profileScreen.allergies')} 

@@ -20,7 +20,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-const API_URL = "http://10.239.178.43:8000/api";
+const API_URL = "http://10.66.131.43:8000/api";
 
 const Card = ({ children, style }: any) => (
   <View style={[styles.card, style]}>{children}</View>
@@ -34,10 +34,12 @@ export default function SubmissionDetail() {
   const [loading, setLoading] = useState(true);
   const [submission, setSubmission] = useState<any>(null);
   const [activeSubmissionId, setActiveSubmissionId] = useState(id);
+  const [authToken, setAuthToken] = useState<string | null>(null);
 
   const fetchSubmission = async () => {
     try {
       const token = await SecureStore.getItemAsync('access_token');
+      setAuthToken(token);
       const url = `${API_URL}/doctor/submissions/${id}/`;
 
       const response = await fetch(url, {
@@ -70,10 +72,24 @@ export default function SubmissionDetail() {
   const displayData = useMemo(() => {
     if (!submission) return null;
 
-    const selectedItem = submission.timeline?.find(
-      (item: any) => String(item.submission_id) === String(activeSubmissionId)
-    );
+    const dummyMetrics = {
+      lesion_count: 12,
+      extra: {
+        lesion_area_ratio: 0.0045,
+        estimated_gags_score: 8,
+        inflammation_intensity_score: 0.182
+      }
+    };
 
+    const selectedItem = submission.timeline?.find(
+      (item: any) => String(item.submission_id) === String(activeSubmissionId),
+    );
+    if (selectedItem) {
+      return {
+        ...selectedItem,
+        metrics: dummyMetrics
+      };
+    }
     return selectedItem || {
       image: submission.skin_analysis?.image,
       prediction: submission.skin_analysis?.prediction,
@@ -83,7 +99,8 @@ export default function SubmissionDetail() {
       answers: submission.skin_analysis?.answers || {},
       comments: submission.skin_analysis?.comments,
       pain_level: submission.skin_analysis?.pain_level,
-      duration: submission.skin_analysis?.duration
+      duration: submission.skin_analysis?.duration,
+      metrics: dummyMetrics
     };
   }, [submission, activeSubmissionId]);
   if (loading || !displayData) {
@@ -106,6 +123,10 @@ export default function SubmissionDetail() {
   const patient = submission?.patient;
   const profile = patient?.profile;
   const timeline = submission?.timeline || [];
+  const getSecureImageUrl = (uri: string | null | undefined) => {
+    if (!uri || !authToken) return uri;
+    return `${uri}?token=${authToken}`;
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -186,7 +207,7 @@ export default function SubmissionDetail() {
                     String(activeSubmissionId) === String(item.submission_id) && styles.activeTimelineItem
                   ]}
                 >
-                  <Image source={{ uri: item.image }} style={styles.timelineImage} />
+                  <Image source={{ uri: getSecureImageUrl(item.image) }} style={styles.timelineImage} />
                   <Text style={styles.timelineDate}>{item.date}</Text>
                   {item.has_report && (
                     <View style={styles.checkIcon}>
@@ -202,7 +223,7 @@ export default function SubmissionDetail() {
         <Card style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Reviewing Selected Update</Text>
           {imageUri ? (
-            <Image source={{ uri: imageUri }} style={styles.submittedImage} />
+            <Image source={{ uri: getSecureImageUrl(imageUri) }} style={styles.submittedImage} />
           ) : (
             <View style={[styles.submittedImage, styles.center]}>
               <Text style={{ color: "#9CA3AF" }}>No image provided</Text>
@@ -214,7 +235,7 @@ export default function SubmissionDetail() {
           <Text style={styles.sectionTitle}>Clinical Details</Text>
           
           <View style={styles.infoRowLine}>
-            <Text style={styles.infoLeft}>AI Prediction</Text>
+            <Text style={styles.infoLeft}>Prediction</Text>
             <View style={{ alignItems: 'flex-end' }}>
               <Text style={[styles.infoRight, { color: '#2563EB', fontWeight: 'bold' }]}>
                 {prediction || "No prediction"}
@@ -226,7 +247,33 @@ export default function SubmissionDetail() {
               ) : null}
             </View>
           </View>
-          
+          <View style={styles.MetricsContainer}>
+            <Text style={styles.MetricsTitle}>Automated Measurements</Text>
+            
+            <View style={styles.MRow}>
+              <Text style={styles.MLabel}>Lesion Count</Text>
+              <Text style={styles.MValue}>{displayData.metrics?.lesion_count || 0}</Text>
+            </View>
+
+            <View style={styles.MRow}>
+              <Text style={styles.MLabel}>Area Coverage</Text>
+              <Text style={styles.MValue}>
+                {((displayData.metrics?.extra?.lesion_area_ratio || 0) * 100).toFixed(2)}%
+              </Text>
+            </View>
+
+            <View style={styles.MRow}>
+              <Text style={styles.MLabel}>Inflammation Score</Text>
+              <Text style={styles.MValue}>
+                {(displayData.metrics.extra.inflammation_intensity_score * 100).toFixed(1)}%
+              </Text>
+            </View>
+
+            <View style={[styles.MRow, { borderBottomWidth: 0 }]}>
+              <Text style={styles.MLabel}>Est. GAGS Grade</Text>
+              <Text style={styles.MValue}>{displayData.metrics.extra.estimated_gags_score}</Text>
+            </View>
+          </View>
           <View style={styles.separator} />
           <View style={styles.infoRowLine}>
             <Text style={styles.infoLeft}>Place</Text>
@@ -334,4 +381,9 @@ const styles = StyleSheet.create({
   activeTimelineItem: { borderColor: '#2563EB', borderWidth: 2, padding: 2, borderRadius: 14 },
   timelineDate: { fontSize: 10, color: '#6B7280', marginTop: 4, fontWeight: 'bold' },
   checkIcon: { position: 'absolute', top: -5, right: -5 },
+  MetricsContainer: { backgroundColor: '#F8FAFC', borderRadius: 10, padding: 12,  marginVertical: 10, borderWidth: 1, borderColor: '#E2E8F0', },
+  MetricsTitle: { fontSize: 12, fontWeight: '800', color: '#475569', textTransform: 'uppercase', marginBottom: 8, letterSpacing: 0.5,},
+  MRow: {flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: '#F1F5F9', },
+  MLabel: { fontSize: 13, color: '#64748B', },
+  MValue: { fontSize: 13, fontWeight: '700', color: '#0F172A',},
 });

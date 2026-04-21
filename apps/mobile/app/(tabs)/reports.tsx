@@ -31,7 +31,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-const BASE_URL = 'http://10.239.178.43:8000';
+const BASE_URL = 'http://10.66.131.43:8000';
 const API_URL = `${BASE_URL}/api/patient/reports/`;
 
 interface MedicalReport {
@@ -45,6 +45,14 @@ interface MedicalReport {
   visit_required: boolean;
   date: string;
   timeline_images: { image: string, date: string }[];
+  metrics?: {
+    lesion_count: number;
+    extra: {
+      lesion_area_ratio: number;
+      estimated_gags_score: number;
+      inflammation_intensity_score: number;
+    };
+  };
 }
 
 const Card = ({ children, style }: any) => (
@@ -233,6 +241,27 @@ export default function ReportsScreen() {
                                   <Text style={styles.detailLabel}>{t('reportsScreen.officialDiagnosis')}</Text>
                                   <Text style={styles.detailText}>{report.diagnosis}</Text>
                                 </View>
+                                <View style={styles.detailItem}>
+                                  <Text style={styles.detailLabel}>ANALYSIS</Text>
+                                  <View style={styles.statsContainer}>
+                                    <View style={styles.statRow}>
+                                      <Text style={styles.statLabel}>Lesion Count</Text>
+                                      <Text style={styles.statValue}>12</Text>
+                                    </View>
+                                    <View style={styles.statRow}>
+                                      <Text style={styles.statLabel}>Affected Area</Text>
+                                      <Text style={styles.statValue}>0.45%</Text>
+                                    </View>
+                                    <View style={styles.statRow}>
+                                      <Text style={styles.statLabel}>Inflammation Intensity</Text>
+                                      <Text style={styles.statValue}>18.2%</Text>
+                                    </View>
+                                    <View style={styles.statRow}>
+                                      <Text style={styles.statLabel}>Est. GAGS Score</Text>
+                                      <Text style={styles.statValue}>8</Text>
+                                    </View>
+                                  </View>
+                                </View>
 
                                 {report.doctor_comment && (
                                   <View style={styles.detailItem}>
@@ -329,4 +358,8 @@ const styles = StyleSheet.create({
   emptyState: { alignItems: 'center', justifyContent: 'center', marginTop: 60, gap: 12 },
   emptyTitle: { fontSize: 18, fontWeight: 'bold', color: '#111827' },
   emptyText: { color: '#6B7280' },
+  statsContainer: { backgroundColor: '#FFFFFF', borderRadius: 8, padding: 12, marginTop: 8,borderWidth: 1,borderColor: '#E5E7EB',},
+  statRow: { flexDirection: 'row',justifyContent: 'space-between',paddingVertical: 4,borderBottomWidth: 1,borderBottomColor: '#F3F4F6',},
+  statLabel: { fontSize: 13, color: '#6B7280',},
+  statValue: { fontSize: 13, fontWeight: '700', color: '#111827',},
 });

@@ -3,10 +3,12 @@ import { ArrowLeft, Bell, ChevronRight, FileText, HelpCircle, Lock, LogOut, Moon
 import React, { useState } from 'react';
 import { ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useLanguage } from '../lib/LanguageContext';
 import { LanguageSwitcher } from '../components/LanguageSwitcher';
 
 export default function SettingsScreen() {
   const router = useRouter();
+  const { t } = useLanguage();
   const [notifications, setNotifications] = useState(true);
   const [darkMode, setDarkMode] = useState(false);
 
@@ -42,49 +44,49 @@ export default function SettingsScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <ArrowLeft size={24} color="#111827" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Settings</Text>
+        <Text style={styles.headerTitle}>{t('settingsScreen.settings')}</Text>
         <View style={{ width: 40 }} />
       </View>
 
       <ScrollView style={styles.content}>
-        <Text style={styles.sectionHeader}>Preferences</Text>
+        <Text style={styles.sectionHeader}>{t('settingsScreen.preferences')}</Text>
         <View style={styles.section}>
           <SettingItem 
             icon={Bell} 
-            label="Push Notifications" 
+            label={t('settingsScreen.pushNotifications')} 
             type="toggle" 
             value={notifications} 
             onToggle={setNotifications} 
           />
           <SettingItem 
             icon={Moon} 
-            label="Dark Mode" 
+            label={t('settingsScreen.darkMode')} 
             type="toggle" 
             value={darkMode} 
             onToggle={setDarkMode} 
           />
         </View>
 
-        <Text style={styles.sectionHeader}>Language</Text>
+        <Text style={styles.sectionHeader}>{t('settingsScreen.language')}</Text>
         <View style={styles.section}>
           <View style={{ padding: 16 }}>
             <LanguageSwitcher />
           </View>
         </View>
 
-        <Text style={styles.sectionHeader}>Support</Text>
+        <Text style={styles.sectionHeader}>{t('settingsScreen.support')}</Text>
         <View style={styles.section}>
-          <SettingItem icon={HelpCircle} label="Help Center" />
-          <SettingItem icon={Lock} label="Privacy Policy" />
-          <SettingItem icon={FileText} label="Terms of Service" />
+          <SettingItem icon={HelpCircle} label={t('settingsScreen.helpCenter')} />
+          <SettingItem icon={Lock} label={t('settingsScreen.privacyPolicy')} />
+          <SettingItem icon={FileText} label={t('settingsScreen.termsOfService')} />
         </View>
 
         <TouchableOpacity style={styles.logoutBtn} onPress={() => router.replace('/login')}>
           <LogOut size={20} color="#DC2626" />
-          <Text style={styles.logoutText}>Sign Out</Text>
+          <Text style={styles.logoutText}>{t('settingsScreen.signOut')}</Text>
         </TouchableOpacity>
 
-        <Text style={styles.version}>DermaScan v1.0.0</Text>
+        <Text style={styles.version}>{t('settingsScreen.version')}</Text>
       </ScrollView>
     </SafeAreaView>
   );
