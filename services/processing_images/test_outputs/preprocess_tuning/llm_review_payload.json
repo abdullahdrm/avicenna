@@ -1,0 +1,58 @@
+{
+  "task": "Rank preprocessing variants using visual quality for lesion analysis.",
+  "rubric": [
+    "Preserve lesion boundaries and small spots",
+    "Avoid over-smoothing and detail loss",
+    "Improve contrast without clipping highlights/shadows",
+    "Maintain natural skin tones"
+  ],
+  "top_variants": [
+    {
+      "variant_id": "v055",
+      "clahe_clip": 3.0,
+      "clahe_tile": 6,
+      "gray_p": 4,
+      "blur_sigma": 0.0,
+      "images_count": 2,
+      "avg_cv_score": 0.8605980552591236
+    },
+    {
+      "variant_id": "v061",
+      "clahe_clip": 3.0,
+      "clahe_tile": 8,
+      "gray_p": 4,
+      "blur_sigma": 0.0,
+      "images_count": 2,
+      "avg_cv_score": 0.8244844722987617
+    },
+    {
+      "variant_id": "v063",
+      "clahe_clip": 3.0,
+      "clahe_tile": 8,
+      "gray_p": 6,
+      "blur_sigma": 0.0,
+      "images_count": 2,
+      "avg_cv_score": 0.7865739497049439
+    },
+    {
+      "variant_id": "v059",
+      "clahe_clip": 3.0,
+      "clahe_tile": 6,
+      "gray_p": 8,
+      "blur_sigma": 0.0,
+      "images_count": 2,
+      "avg_cv_score": 0.7818253935225479
+    },
+    {
+      "variant_id": "v067",
+      "clahe_clip": 3.0,
+      "clahe_tile": 10,
+      "gray_p": 4,
+      "blur_sigma": 0.0,
+      "images_count": 2,
+      "avg_cv_score": 0.7800320065875216
+    }
+  ],
+  "preview_root": "services/processing_images/test_outputs/preprocess_tuning/previews",
+  "recommended_next_step": "Use this payload as input to LLM review and combine LLM rank with avg_cv_score."
+}

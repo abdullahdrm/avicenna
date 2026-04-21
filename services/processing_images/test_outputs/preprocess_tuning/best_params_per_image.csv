@@ -1,0 +1,3 @@
+image,variant_id,clahe_clip,clahe_tile,gray_p,blur_sigma,sharpness,contrast,clip_ratio,color_cast,cv_score
+ml/datasets/fungal_images_real/other_fungal/fungus_1.png,v055,3.0,6,4,0.0,583.7317354688529,45.01841992215118,0.0,0.005426397115950094,0.8768867859354197
+ml/datasets/fungal_images_real/other_fungal/fungus_2.png,v055,3.0,6,4,0.0,664.2190772953405,38.257095442777015,2.9349698725342582e-06,0.01134014554547571,0.8443093245828275
