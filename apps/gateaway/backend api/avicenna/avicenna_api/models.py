@@ -1,3 +1,4 @@
+from pgvector.django import VectorField
 from django.conf import settings
 from django.db import models
 from django.contrib.auth.models import AbstractUser
@@ -20,7 +21,7 @@ class User(AbstractUser):
     )
 
     USERNAME_FIELD = 'email'
-    REQUIRED_FIELDS = ['username'] 
+    REQUIRED_FIELDS = ['username']
 
     def __str__(self):
         return f"{self.email} ({self.role})"
@@ -121,8 +122,8 @@ class DoctorProfile(models.Model):
 class Submission(models.Model):
 
     skin_analysis = models.OneToOneField(
-        'SkinAnalysis', 
-        on_delete=models.CASCADE, 
+        'SkinAnalysis',
+        on_delete=models.CASCADE,
         related_name='submission',
         null=True,
         blank=True
@@ -140,7 +141,7 @@ class Submission(models.Model):
         related_name='doctor_submissions',
         limit_choices_to={'role': 'doctor'}
     )
-    
+
     status = models.CharField(
         choices=[('pending', 'Pending'), ('reviewed', 'Reviewed')],
         default='pending'
@@ -186,21 +187,25 @@ class Medication(models.Model):
     )
     name = models.CharField(max_length=255)
     frequency = models.CharField(max_length=255)
-    
+
+
 class SkinAnalysis(models.Model):
     job_id = models.CharField(max_length=100, blank=True, null=True)
     image = models.ImageField(upload_to='skin_scans/')
     body_part = models.CharField(max_length=100, default="Face")
     prediction = models.CharField(max_length=100, blank=True, null=True)
     confidence = models.FloatField(default=0.0)
-    medical_case = models.ForeignKey('MedicalCase', on_delete=models.CASCADE, related_name='timeline_images', null=True, blank=True)
+    medical_case = models.ForeignKey(
+        'MedicalCase', on_delete=models.CASCADE, related_name='timeline_images', null=True, blank=True)
     status = models.CharField(
         max_length=20,
-        choices=[('analyzed', 'Analyzed'), ('review', 'Under Review'), ('reviewed', 'Reviewed')],
+        choices=[('analyzed', 'Analyzed'), ('review',
+                                            'Under Review'), ('reviewed', 'Reviewed')],
         default='review'
     )
     answers = models.JSONField(default=dict, blank=True)
-    patient = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='skin_analyses', null=True) 
+    patient = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='skin_analyses', null=True)
     pain_level = models.IntegerField(default=0)
     duration = models.CharField(max_length=100, blank=True, null=True)
     comments = models.TextField(blank=True, null=True)
@@ -208,8 +213,8 @@ class SkinAnalysis(models.Model):
 
     def __str__(self):
         return f"{self.body_part} - {self.created_at.strftime('%Y-%m-%d')}"
-    
-    
+
+
 class Article(models.Model):
     CATEGORY_CHOICES = [
         ('Acne', 'Acne'),
@@ -230,6 +235,7 @@ class Article(models.Model):
     def __str__(self):
         return self.title
 
+
 class DailyTip(models.Model):
     content = models.TextField()
     is_active = models.BooleanField(default=True)
@@ -237,28 +243,35 @@ class DailyTip(models.Model):
     def __str__(self):
         return f"Tip: {self.content[:30]}..."
 
-class MedicalCase(models.Model):  
-    patient = models.ForeignKey(User, on_delete=models.CASCADE, related_name='medical_cases')
-    title = models.CharField(max_length=255) 
-    disease_type = models.CharField(max_length=100, blank=True, null=True) 
+
+class MedicalCase(models.Model):
+    patient = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name='medical_cases')
+    title = models.CharField(max_length=255)
+    disease_type = models.CharField(max_length=100, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    is_active = models.BooleanField(default=True) 
+    is_active = models.BooleanField(default=True)
 
     def __str__(self):
         return f"{self.title} - {self.patient.username}"
 
+
 class Notification(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name='notifications')
     message = models.CharField(max_length=255)
     is_read = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
-    submission = models.ForeignKey('Submission', on_delete=models.CASCADE, null=True, blank=True)
+    submission = models.ForeignKey(
+        'Submission', on_delete=models.CASCADE, null=True, blank=True)
+
     class Meta:
-        ordering = ['-created_at'] 
+        ordering = ['-created_at']
 
     def __str__(self):
         return f"Notification for {self.user.username}: {self.message}"
-    
+
+
 class MedicalAuditLog(models.Model):
     ACTION_CHOICES = (
         ('VIEW', 'Viewed'),
@@ -266,13 +279,33 @@ class MedicalAuditLog(models.Model):
         ('UPDATE', 'Updated'),
         ('DELETE', 'Deleted'),
     )
-    
-    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+
+    user = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True)
     action = models.CharField(max_length=10, choices=ACTION_CHOICES)
-    resource_type = models.CharField(max_length=50) 
+    resource_type = models.CharField(max_length=50)
     resource_id = models.CharField(max_length=50)
     timestamp = models.DateTimeField(auto_now_add=True)
     ip_address = models.GenericIPAddressField(null=True, blank=True)
 
     def __str__(self):
         return f"[{self.timestamp}] {self.user.username} {self.action} {self.resource_type} #{self.resource_id}"
+
+
+class QAEmbedding(models.Model):
+    question = models.TextField()
+    answer = models.TextField()
+
+    content = models.TextField(blank=True)
+
+    embedding = VectorField(dimensions=768)  # BAAI/bge-base-en-v1.5
+
+    source_file = models.CharField(max_length=500, blank=True, default="")
+
+    def save(self, *args, **kwargs):
+        if not self.content:
+            self.content = f"Q: {self.question}\nA: {self.answer}"
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.question[:80]
