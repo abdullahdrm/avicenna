@@ -16,6 +16,7 @@ if GEMINI_API_KEY:
 else:
     print("UYARI: GEMINI_API_KEY bulunamadı! Lütfen .env dosyanızı kontrol edin.")
 
+
 SYSTEM_INSTRUCTION = """
 You are a conservative dermatology assistant used for doctor support.
 
@@ -23,6 +24,7 @@ You must reply with a valid JSON object. Do not include markdown formatting like
 The JSON object must strictly follow this structure:
 {
   "analysis": "Your 4-paragraph plain English text...",
+  "gemini_summary": "A maximum 50-word summary of the analysis in no more than 2 sentences.",
   "detailed_class": "The most specific condition inferred (e.g. 'acne vulgaris', 'healthy')",
   "detailed_probability": 0.95,
   "short_class": "A constrained class name from the approved list",
@@ -49,8 +51,20 @@ Analysis Formatting Rules:
 - The "analysis" field MUST be plain English text.
 - Do NOT use markdown in the analysis field.
 - Do NOT use bullet points or headings in the analysis field.
-- Do NOT mention hidden reasoning or probabilities in the analysis field.
+- Do NOT mention numerical probabilities explicitly in the analysis text itself.
+- Do NOT mention hidden reasoning in the analysis field.
 - Do NOT mention that you corrected or summarized the complaint in the analysis field.
+- The end-user ONLY SEES the model's PRIMARY (First/Top-1) prediction. They DO NOT see the 2nd or 3rd predictions.
+- Therefore, you MUST refer to the 1st item as the "model's primary prediction" or "model's output". If you discuss the 2nd or 3rd items, you MUST explicitly frame them as alternative hidden suggestions.
+
+Summary Formatting Rules:
+- The "gemini_summary" field MUST summarize the "analysis" field.
+- The "gemini_summary" field MUST be plain English text.
+- The "gemini_summary" field MUST be maximum 50 words.
+- The "gemini_summary" field MUST contain no more than 2 sentences.
+- Do NOT use markdown, bullet points, or headings in the "gemini_summary" field.
+- Do NOT mention numerical probabilities explicitly in the "gemini_summary" field.
+- If the image is irrelevant, poor quality, or shows healthy skin, summarize that exact outcome briefly.
 
 Before answering, silently do all of the following (do not include these steps in the text):
 1) Correct obvious spelling mistakes in the patient's complaint.
@@ -60,11 +74,11 @@ Before answering, silently do all of the following (do not include these steps i
 Image relevance rules:
 - If the uploaded content is not a dermatology-relevant skin image, your "analysis" text must be exactly:
   The most likely condition is undetected. The uploaded content does not appear to be a relevant dermatology image.
-  In this case, set "detailed_class" to "undetected" and "short_class" to "others".
+  In this case, set "detailed_class" to "undetected", "short_class" to "others", and summarize this in "gemini_summary".
 - Examples of irrelevant content include x-rays, CT scans, MRI scans, screenshots, documents, math problems, charts, random objects, or non-skin photos with no visible skin lesion.
 - If the image is too blurry, too dark, too cropped, too distant, or otherwise not reliable for skin assessment, your "analysis" text must be exactly:
   The most likely condition is undetected. The image quality is not sufficient for a reliable dermatology assessment.
-  In this case, set "detailed_class" to "undetected" and "short_class" to "others".
+  In this case, set "detailed_class" to "undetected", "short_class" to "others", and summarize this in "gemini_summary".
 
 Diagnostic rules:
 - Use the image as the primary evidence.
@@ -75,16 +89,21 @@ Diagnostic rules:
 - Do not rely mainly on past medical history.
 - Past medical history may support recurrence only if the current image and present symptoms are also compatible with that condition.
 - Ignore unrelated past conditions if they do not fit the current image and complaint.
-- If the image clearly shows normal skin with no meaningful abnormality, you may say:
-  The most likely condition is healthy skin.
+- If the image clearly shows normal skin with no meaningful abnormality, your "analysis" text must be exactly:
+  The most likely condition is healthy skin. There are no clear dermatological abnormalities visible.
+  In this case, set "detailed_class" to "healthy", "short_class" to "others", and summarize this in "gemini_summary".
 - If the case is skin-related but too ambiguous for one reliable label, say:
   The most likely condition is undetermined.
 
 Output format rules for "analysis":
-- If the image is irrelevant or too poor quality, return only the exact undetected response as described above.
+- If the image is irrelevant, poor quality, or shows clearly healthy skin, return only the exact 1-2 sentence response as described above.
 - Otherwise, the "analysis" field must contain exactly 4 short paragraphs.
 - Paragraph 1 (Diagnosis): Must start exactly with "The most likely condition is ...". State the broad umbrella diagnosis and a more specific clinical subtype if reasonably supported. Keep it to 2-3 sentences.
-- Paragraph 2 (Model Evaluation): Critically evaluate the external classifier's top predictions. Explicitly state whether you agree or disagree, supporting your stance with visual and symptomatic evidence. Keep it to 3-4 sentences.
+- Paragraph 2 (Model Evaluation): Critically evaluate the model's primary prediction taking into account its probability.
+  * If you AGREE with the primary prediction: State your agreement and support it with visual/symptomatic evidence.
+  * If you DISAGREE and the primary prediction's probability is < 50%: Explain why the model might have made this mistake and what visual features it likely overlooked.
+  * If you DISAGREE and the primary prediction's probability is >= 50%: Provide a more detailed explanation of why you disagree despite the model's strong confidence. Explicitly justify why the model's primary output cannot be trusted in this specific case based on contradictory clinical signs.
+  * In all disagreement cases, if an alternative prediction is correct, acknowledge it explicitly as an alternative hidden suggestion.
 - Paragraph 3 (Clinical Reasoning): Provide a deeper scientific justification. Connect the specific visual findings with the patient's reported symptoms, and briefly explain why other common conditions were ruled out. Keep it to 3-5 sentences.
 - Paragraph 4 (Treatment Approach): Suggest a concise, conservative treatment strategy. Mention general skin care, potential topical or systemic approaches, and advise a dermatology review. Keep it to 3-5 sentences.
 
@@ -100,6 +119,7 @@ Advice rules:
 - Safe advice may include avoiding triggers, reducing irritant exposure, using a gentle fragrance-free moisturizer, and seeking dermatology review if persistent or worsening.
 """.strip()
 
+
 UNDETECTED_IRRELEVANT = (
     "The most likely condition is undetected. "
     "The uploaded content does not appear to be a relevant dermatology image."
@@ -110,11 +130,32 @@ UNDETECTED_QUALITY = (
     "The image quality is not sufficient for a reliable dermatology assessment."
 )
 
+HEALTHY_SKIN = (
+    "The most likely condition is healthy skin. "
+    "There are no clear dermatological abnormalities visible."
+)
+
+ALLOWED_SHORT_CLASSES = [
+    "acne",
+    "eczema",
+    "psoriasis",
+    "fungal",
+    "ringworm",
+    "tinea",
+    "hives",
+    "urticaria",
+    "dermatitis",
+    "rosacea",
+    "others",
+]
+
+
 def _limit_sentences(text: str, max_sentences: int) -> str:
     text = re.sub(r"\s+", " ", text).strip()
-    parts = re.split(r'(?<=[.!?])\s+', text)
+    parts = re.split(r"(?<=[.!?])\s+", text)
     parts = [p.strip() for p in parts if p.strip()]
     return " ".join(parts[:max_sentences]).strip()
+
 
 def clean_response(text: str) -> str:
     if not text:
@@ -126,23 +167,20 @@ def clean_response(text: str) -> str:
     s = re.sub(r"^```[a-zA-Z0-9_-]*\n?", "", s)
     s = re.sub(r"```$", "", s).strip()
 
-    s = s.strip()
-    if s == UNDETECTED_IRRELEVANT or s == UNDETECTED_QUALITY:
+    if s in [UNDETECTED_IRRELEVANT, UNDETECTED_QUALITY, HEALTHY_SKIN]:
         return s
 
-    # split into paragraphs if present
     paragraphs = [p.strip() for p in re.split(r"\n\s*\n", s) if p.strip()]
 
     if len(paragraphs) == 0:
         return UNDETECTED_QUALITY
 
-    # Process up to 4 paragraphs
-    p1 = _limit_sentences(paragraphs[0] if len(paragraphs) > 0 else "", 4)
+    p1 = _limit_sentences(paragraphs[0], 4)
     if not p1.lower().startswith("the most likely condition is"):
         p1 = "The most likely condition is undetermined. " + p1
 
     final_paragraphs = [p1]
-    
+
     if len(paragraphs) > 1:
         final_paragraphs.append(_limit_sentences(paragraphs[1], 5))
     if len(paragraphs) > 2:
@@ -152,21 +190,80 @@ def clean_response(text: str) -> str:
 
     return "\n\n".join(final_paragraphs)
 
+
+def clean_summary(text: str) -> str:
+    if not text:
+        return ""
+
+    s = re.sub(r"\s+", " ", text).strip()
+
+    # remove accidental code fences
+    s = re.sub(r"^```[a-zA-Z0-9_-]*\n?", "", s)
+    s = re.sub(r"```$", "", s).strip()
+
+    # max 2 sentences
+    s = _limit_sentences(s, 2)
+
+    # max 50 words
+    words = s.split()
+    if len(words) > 50:
+        s = " ".join(words[:50]).rstrip(".,;:") + "."
+
+    return s
+
+
+def _top_model_prediction(top3_predictions: list) -> dict:
+    if not top3_predictions:
+        return {
+            "class_name": "unknown",
+            "probability": 0.0
+        }
+
+    first = top3_predictions[0]
+
+    return {
+        "class_name": first.get("class_name", "unknown"),
+        "probability": float(first.get("probability", 0.0) or 0.0)
+    }
+
+
+def _error_response(message: str, top3_predictions: list) -> dict:
+    return {
+        "status": "error",
+        "model": _top_model_prediction(top3_predictions),
+        "gemini_analysis": message,
+        "gemini_summary": "Gemini analysis could not be generated because an error occurred.",
+        "gemini_final_response": {
+            "class": "error",
+            "probability": 0.0
+        },
+        "gemini_final_response_form": {
+            "class": "error",
+            "probability": 0.0
+        }
+    }
+
+
 def analyze_with_gemini(image: Image.Image, patient_info: str, top3_predictions: list) -> dict:
     """
-    Hastanın resmi, doktor/sistem notları(patient_info) ve PyTorch modelinin(Top-3)
-    tahminini birleştirerek Gemini'ye gönderir. Colab'daki spesifik prompt kullanılır.
+    Hastanın resmi, hasta bilgileri ve PyTorch modelinin Top-3 tahminini
+    Gemini'ye gönderir. Sonucu istenen API formatında döndürür.
     """
+
     if not GEMINI_API_KEY:
-        return {
-            "gemini_analysis": "Hata: Sunucuda GEMINI_API_KEY tanımlı değil.",
-            "gemini_final_response": {"class": "error", "probability": 0.0},
-            "gemini_final_response_form": {"class": "error", "probability": 0.0}
-        }
+        return _error_response(
+            "Hata: Sunucuda GEMINI_API_KEY tanımlı değil.",
+            top3_predictions
+        )
 
     classifier_summary_lines = []
     for rank, item in enumerate(top3_predictions, start=1):
-        classifier_summary_lines.append(f"{rank}. {item['class_name']} ({item['probability'] * 100:.2f}%)")
+        class_name = item.get("class_name", "unknown")
+        probability = float(item.get("probability", 0.0) or 0.0)
+        classifier_summary_lines.append(
+            f"{rank}. {class_name} ({probability * 100:.2f}%)"
+        )
+
     classifier_summary = "\n".join(classifier_summary_lines)
 
     prompt = f"""
@@ -184,6 +281,7 @@ Task:
 - If a past condition is relevant and consistent with the current image and symptoms, you may mention that it could support recurrence or clinical context.
 - Do not focus only on history; the current image must remain primary.
 - Construct the text in exactly 4 paragraphs (Diagnosis, Model Evaluation, Clinical Reasoning, Treatment Approach) and place it in the "analysis" field of the JSON.
+- Also create "gemini_summary" as a maximum 50-word summary of the analysis in no more than 2 sentences.
 
 Classifier accuracy is %71.5, so be careful about result.
 External dermatology classifier top predictions:
@@ -192,11 +290,14 @@ External dermatology classifier top predictions:
 Preferred style example:
 The most likely condition is eczema. More specifically, this appears most consistent with contact dermatitis of the hands. The overall clinical presentation strongly suggests an environmental irritant etiology rather than a primary infectious process.
 
-The classifier explicitly predicted "Eczema Photos" correctly in its top predictions. Although it also suggested "Tinea Ringworm Candidiasis", the characteristic raised scaly borders of a fungal infection are absent here. Therefore, the model's eczema prediction is visually and symptomatically supported.
+The model's primary prediction of "Eczema Photos" is highly accurate and supported by the visual features. Although its alternative underlying suggestion was "Tinea Ringworm Candidiasis", the characteristic raised scaly borders of a fungal infection are absent here. Therefore, the eczema prediction is visually and symptomatically confirmed.
 
 Clinical analysis reveals ill-defined erythematous plaques with deep fissures across the palmar surfaces. These visual findings, combined with the patient's reported worsening after frequent detergent exposure and intense localized pruritus, confidently rule out systemic conditions. Psoriasis is less likely due to the lack of distinct silvery scaling.
 
 For treatment, reducing environmental irritant exposure is the primary recommendation. Using a gentle fragrance-free and ceramide-rich moisturizer can help restore the skin barrier. If the rash persists or worsens, a dermatology review is advised for potential short-course topical corticosteroid therapy.
+
+Example gemini_summary:
+The image is most consistent with eczema, likely contact dermatitis. Conservative skin care and dermatology review are recommended if symptoms persist or worsen.
 
 Patient information:
 {patient_info}
@@ -204,57 +305,81 @@ Patient information:
 
     try:
         model = genai.GenerativeModel(
-            'gemini-2.5-flash',
+            "gemini-2.5-flash",
             system_instruction=SYSTEM_INSTRUCTION,
-            generation_config={"response_mime_type": "application/json"}
+            generation_config={
+                "response_mime_type": "application/json"
+            }
         )
-        
+
         response = model.generate_content([prompt, image])
-        
+
         text = response.text.strip()
+
+        # remove accidental code fences
         if text.startswith("```"):
             text = text.strip("` \n")
             if text.lower().startswith("json"):
                 text = text[4:].strip()
-                
+
         try:
             data = json.loads(text)
         except json.JSONDecodeError:
             data = {
                 "analysis": text,
+                "gemini_summary": "",
                 "detailed_class": "undetected",
                 "detailed_probability": 0.0,
                 "short_class": "others",
                 "short_probability": 0.0
             }
-            
+
         analysis_text = clean_response(data.get("analysis", ""))
+
+        gemini_summary = clean_summary(data.get("gemini_summary", ""))
+        if not gemini_summary:
+            gemini_summary = clean_summary(analysis_text)
+
         detailed_class = data.get("detailed_class", "others")
+        if not isinstance(detailed_class, str) or not detailed_class.strip():
+            detailed_class = "others"
+        detailed_class = detailed_class.strip()
+
         try:
-            detailed_prob = float(data.get("detailed_probability", 0.0))
-        except:
+            detailed_prob = float(data.get("detailed_probability", 0.0) or 0.0)
+        except Exception:
             detailed_prob = 0.0
-            
-        short_class = data.get("short_class", "others").lower()
-        if short_class not in ['acne', 'eczema', 'psoriasis', 'fungal', 'ringworm', 'tinea', 'hives', 'urticaria', 'dermatitis', 'rosacea', 'others']:
-            short_class = 'others'
-            
+
+        short_class = data.get("short_class", "others")
+        if not isinstance(short_class, str):
+            short_class = "others"
+
+        short_class = short_class.lower().strip()
+        if short_class not in ALLOWED_SHORT_CLASSES:
+            short_class = "others"
+
         try:
-            short_prob = float(data.get("short_probability", 0.0))
-        except:
+            short_prob = float(data.get("short_probability", 0.0) or 0.0)
+        except Exception:
             short_prob = 0.0
-            
+
         return {
+            "status": "success",
+            "model": _top_model_prediction(top3_predictions),
             "gemini_analysis": analysis_text,
-            "gemini_final_response": {"class": detailed_class, "probability": detailed_prob},
-            "gemini_final_response_form": {"class": short_class, "probability": short_prob}
+            "gemini_summary": gemini_summary,
+            "gemini_final_response": {
+                "class": detailed_class,
+                "probability": detailed_prob
+            },
+            "gemini_final_response_form": {
+                "class": short_class,
+                "probability": short_prob
+            }
         }
+
     except Exception as e:
-        return {
-            "gemini_analysis": f"Gemini API Hatası: {str(e)}",
-            "gemini_final_response": {"class": "error", "probability": 0.0},
-            "gemini_final_response_form": {"class": "error", "probability": 0.0}
-        }
-
-
-
+        return _error_response(
+            f"Gemini API Hatası: {str(e)}",
+            top3_predictions
+        )

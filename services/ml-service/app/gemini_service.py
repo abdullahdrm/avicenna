@@ -23,6 +23,7 @@ You must reply with a valid JSON object. Do not include markdown formatting like
 The JSON object must strictly follow this structure:
 {
   "analysis": "Your 4-paragraph plain English text...",
+  "gemini_summary": "A maximum 50-word summary of the analysis in no more than 2 sentences.",
   "detailed_class": "The most specific condition inferred (e.g. 'acne vulgaris', 'healthy')",
   "detailed_probability": 0.95,
   "short_class": "A constrained class name from the approved list",
@@ -53,6 +54,15 @@ Analysis Formatting Rules:
 - Do NOT mention that you corrected or summarized the complaint in the analysis field.
 - The end-user ONLY SEES the model's PRIMARY (First/Top-1) prediction. They DO NOT see the 2nd or 3rd predictions.
 - Therefore, you MUST refer to the 1st item as the "model's primary prediction" or "model's output". If you discuss the 2nd or 3rd items, you MUST explicitly frame them as alternative hidden suggestions (e.g., "Although the model's primary prediction was X, its alternative underlying suggestion of Y is actually more accurate...").
+
+Summary Formatting Rules:
+- The "gemini_summary" field MUST summarize the "analysis" field.
+- The "gemini_summary" field MUST be plain English text.
+- The "gemini_summary" field MUST be maximum 50 words.
+- The "gemini_summary" field MUST contain no more than 2 sentences.
+- Do NOT use markdown, bullet points, or headings in the "gemini_summary" field.
+- Do NOT mention numerical probabilities explicitly in the "gemini_summary" field.
+- If the image is irrelevant, poor quality, or shows healthy skin, summarize that exact outcome briefly.
 
 Before answering, silently do all of the following (do not include these steps in the text):
 1) Correct obvious spelling mistakes in the patient's complaint.
@@ -164,6 +174,26 @@ def clean_response(text: str) -> str:
 
     return "\n\n".join(final_paragraphs)
 
+def clean_summary(text: str) -> str:
+    if not text:
+        return ""
+
+    s = re.sub(r"\s+", " ", text).strip()
+
+    # Markdown / code fence temizliği
+    s = re.sub(r"^```[a-zA-Z0-9_-]*\n?", "", s)
+    s = re.sub(r"```$", "", s).strip()
+
+    # En fazla 2 cümle
+    s = _limit_sentences(s, 2)
+
+    # En fazla 50 kelime
+    words = s.split()
+    if len(words) > 50:
+        s = " ".join(words[:50]).rstrip(".,;:") + "."
+
+    return s
+
 def analyze_with_gemini(image: Image.Image, patient_info: str, top3_predictions: list) -> dict:
     """
     Hastanın resmi, doktor/sistem notları(patient_info) ve PyTorch modelinin(Top-3)
@@ -222,7 +252,7 @@ Patient information:
         )
         
         response = model.generate_content([prompt, image])
-        
+
         text = response.text.strip()
         if text.startswith("```"):
             text = text.strip("` \n")
@@ -241,6 +271,12 @@ Patient information:
             }
             
         analysis_text = clean_response(data.get("analysis", ""))
+
+         
+        gemini_summary = clean_summary(data.get("gemini_summary", ""))
+        if not gemini_summary:
+            gemini_summary = clean_summary(analysis_text)
+
         detailed_class = data.get("detailed_class", "others")
         try:
             detailed_prob = float(data.get("detailed_probability", 0.0))
@@ -257,10 +293,23 @@ Patient information:
             short_prob = 0.0
             
         return {
+            "status": "success",
+            "model": {
+                "class_name": top3_predictions[0]["class_name"] if top3_predictions else "unknown",
+                "probability": top3_predictions[0]["probability"] if top3_predictions else 0.0
+            },
             "gemini_analysis": analysis_text,
-            "gemini_final_response": {"class": detailed_class, "probability": detailed_prob},
-            "gemini_final_response_form": {"class": short_class, "probability": short_prob}
+            "gemini_summary": gemini_summary,
+            "gemini_final_response": {
+                "class": detailed_class,
+                "probability": detailed_prob
+            },
+            "gemini_final_response_form": {
+                "class": short_class,
+                "probability": short_prob
+            }
         }
+
     except Exception as e:
         return {
             "gemini_analysis": f"Gemini API Hatası: {str(e)}",

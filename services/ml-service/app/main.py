@@ -37,11 +37,13 @@ CLASS_NAMES = sorted([
 ])
 
 
-
 preprocess = transforms.Compose([
     transforms.Resize((IMG_SIZE, IMG_SIZE)),
     transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    transforms.Normalize(
+        mean=[0.485, 0.456, 0.406],
+        std=[0.229, 0.224, 0.225]
+    ),
 ])
 
 
@@ -69,6 +71,7 @@ def load_model(weights_path: str, device: torch.device):
     model.to(device).eval()
     return model
 
+
 def predict_top3(image_bytes: bytes):
     try:
         img = Image.open(BytesIO(image_bytes)).convert("RGB")
@@ -89,13 +92,15 @@ def predict_top3(image_bytes: bytes):
             "class_name": CLASS_NAMES[idx],
             "probability": float(p),
         })
+
     return result
+
 
 app = FastAPI(title="Skin Disease Classifier", version="1.0")
 
-
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 MODEL = None
+
 
 @app.on_event("startup")
 def _startup():
@@ -103,15 +108,28 @@ def _startup():
     weights_path = "app/final_model_v1.pth"
     MODEL = load_model(weights_path, DEVICE)
 
+
 @app.get("/health")
 def health():
-    return {"status": "ok", "device": str(DEVICE)}
+    return {
+        "status": "ok",
+        "device": str(DEVICE)
+    }
 
 
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
-    if file.content_type not in {"image/jpeg", "image/png", "image/jpg", "image/webp", "image/bmp"}:
-        raise HTTPException(status_code=415, detail=f"Unsupported content-type: {file.content_type}")
+    if file.content_type not in {
+        "image/jpeg",
+        "image/png",
+        "image/jpg",
+        "image/webp",
+        "image/bmp",
+    }:
+        raise HTTPException(
+            status_code=415,
+            detail=f"Unsupported content-type: {file.content_type}"
+        )
 
     image_bytes = await file.read()
     top3 = predict_top3(image_bytes)
@@ -125,26 +143,33 @@ async def predict(file: UploadFile = File(...)):
         "model": model_output
     }
 
+
 @app.post("/analyze")
 async def analyze_patient(
     patient_info: str = Form(...),
     file: UploadFile = File(...)
 ):
-    if file.content_type not in {"image/jpeg", "image/png", "image/jpg", "image/webp", "image/bmp"}:
-        raise HTTPException(status_code=415, detail=f"Unsupported content-type: {file.content_type}")
+    if file.content_type not in {
+        "image/jpeg",
+        "image/png",
+        "image/jpg",
+        "image/webp",
+        "image/bmp",
+    }:
+        raise HTTPException(
+            status_code=415,
+            detail=f"Unsupported content-type: {file.content_type}"
+        )
 
     image_bytes = await file.read()
-    
-    # 1. Image nesnesine çevir (Gemini için)
+
     try:
         img = Image.open(BytesIO(image_bytes)).convert("RGB")
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid image file.")
 
-    # 2. PyTorch'tan ilk 3 tahmin
     top3 = predict_top3(image_bytes)
 
-    # 3. Gemini analizi
     gemini_result = analyze_with_gemini(img, patient_info, top3)
 
     model_output = {
@@ -153,11 +178,10 @@ async def analyze_patient(
     }
 
     return {
-        "status": "success",
+        "status": gemini_result.get("status", "success"),
         "model": model_output,
-        "gemini_analysis": gemini_result["gemini_analysis"],
+        "gemini_analysis": gemini_result.get("gemini_analysis"),
+        "gemini_summary": gemini_result.get("gemini_summary"),
         "gemini_final_response": gemini_result.get("gemini_final_response"),
         "gemini_final_response_form": gemini_result.get("gemini_final_response_form")
     }
-
-
