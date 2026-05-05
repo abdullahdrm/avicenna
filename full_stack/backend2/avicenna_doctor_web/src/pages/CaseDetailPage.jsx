@@ -1,12 +1,18 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { fetchDoctorCaseDetail, createSubmissionReport } from "../lib/api";
+import { fetchDoctorCaseDetail, createSubmissionReport, approveSubmission, requestReupload } from "../lib/api";
 
 function StatusBadge({ status }) {
-  const reviewed = status === "reviewed";
+  const normalized = String(status || "").toLowerCase();
+
+  let label = "Under Review";
+  if (normalized === "reviewed") label = "Reviewed";
+  if (normalized === "approved") label = "Approved";
+  if (normalized === "reupload_requested") label = "Reupload Requested";
+
   return (
-    <span className={`status-badge ${reviewed ? "reviewed" : "pending"}`}>
-      {reviewed ? "Reviewed" : "Under Review"}
+    <span className={`status-badge ${normalized || "pending"}`}>
+      {label}
     </span>
   );
 }
@@ -37,6 +43,9 @@ export default function CaseDetailPage() {
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [showReupload, setShowReupload] = useState(false);
+  const [reuploadReason, setReuploadReason] = useState("");
+  const [actionLoading, setActionLoading] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -68,6 +77,46 @@ export default function CaseDetailPage() {
     }
   }
 
+  async function handleApprove() {
+  setError("");
+  setSuccess("");
+  setActionLoading(true);
+
+  try {
+    await approveSubmission(id);
+    setSuccess("Submission approved successfully.");
+    setCaseData((prev) => ({ ...prev, status: "approved" }));
+  } catch (e) {
+    setError(e.message || "Approval failed.");
+  } finally {
+    setActionLoading(false);
+  }
+}
+
+async function handleRequestReupload() {
+  setError("");
+  setSuccess("");
+
+  if (!reuploadReason.trim()) {
+    setError("Please write a reason for reupload request.");
+    return;
+  }
+
+  setActionLoading(true);
+
+  try {
+    await requestReupload(id, reuploadReason);
+    setSuccess("Reupload request sent successfully.");
+    setCaseData((prev) => ({ ...prev, status: "reupload_requested" }));
+    setShowReupload(false);
+    setReuploadReason("");
+  } catch (e) {
+    setError(e.message || "Reupload request failed.");
+  } finally {
+    setActionLoading(false);
+  }
+}
+
   if (loading) {
     return (
       <div className="center-screen" style={{ minHeight: "50vh" }}>
@@ -86,6 +135,8 @@ export default function CaseDetailPage() {
       </div>
     );
   }
+
+  
 
   const patient = caseData.patient || {};
   const profile = patient.profile || {};
@@ -232,7 +283,52 @@ export default function CaseDetailPage() {
 
       <section className="white-card">
         <h3>Doctor Response</h3>
+      <section className="white-card">
+        <h3>Final Actions</h3>
 
+        <div className="action-row">
+          <button
+            className="primary-btn"
+            type="button"
+            onClick={handleApprove}
+            disabled={actionLoading}
+          >
+            {actionLoading ? "Processing..." : "Approve Report"}
+          </button>
+
+          <button
+            className="ghost-btn"
+            type="button"
+            onClick={() => setShowReupload((prev) => !prev)}
+            disabled={actionLoading}
+          >
+            Request Reupload
+          </button>
+        </div>
+
+        {showReupload ? (
+          <div className="reupload-box">
+            <label>
+              Reupload Reason
+              <textarea
+                value={reuploadReason}
+                onChange={(e) => setReuploadReason(e.target.value)}
+                rows="5"
+                placeholder="Explain why the patient should upload a new photo..."
+              />
+            </label>
+
+            <button
+              className="primary-btn"
+              type="button"
+              onClick={handleRequestReupload}
+              disabled={actionLoading}
+            >
+              Send Reupload Request
+            </button>
+          </div>
+        ) : null}
+      </section>
         <form className="review-form" onSubmit={handleSubmit}>
           <label>
             Diagnosis

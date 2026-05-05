@@ -10,10 +10,12 @@ from django.shortcuts import get_object_or_404
 from .models import *
 from .serializers import *
 from rest_framework import status
+from django.utils import timezone
 from .utilities import *
 from rest_framework import viewsets
 from rest_framework.views import APIView
 from .model_client import call_external_ai_server
+from .models import Submission
 import cv2
 import numpy as np
 import random
@@ -243,6 +245,44 @@ class SubmissionReportCreateView(APIView):
             status=status.HTTP_201_CREATED,
         )
         
+
+class SubmissionApproveView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, id):
+        submission = get_object_or_404(Submission, id=id)
+
+        submission.status = "approved"
+        submission.approved_at = timezone.now()
+        submission.save()
+
+        return Response({
+            "status": "approved",
+            "message": "Submission approved successfully."
+        })
+
+
+class SubmissionReuploadView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, id):
+        submission = get_object_or_404(Submission, id=id)
+
+        reason = request.data.get("reason", "")
+        if not reason:
+            return Response({"error": "Reason is required."}, status=400)
+
+        submission.status = "reupload_requested"
+        submission.reupload_reason = reason
+        submission.save()
+
+        return Response({
+            "status": "reupload_requested",
+            "message": "Reupload requested successfully.",
+            "reason": reason
+        })
+
+
 class SkinAnalysisViewSet(viewsets.ModelViewSet):
     queryset = SkinAnalysis.objects.all().order_by('-created_at')
     serializer_class = SkinAnalysisSerializer

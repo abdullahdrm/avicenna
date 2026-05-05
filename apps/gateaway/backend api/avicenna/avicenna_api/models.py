@@ -142,9 +142,15 @@ class Submission(models.Model):
     )
     
     status = models.CharField(
-        choices=[('pending', 'Pending'), ('reviewed', 'Reviewed')],
+        choices=[('pending', 'Pending'), 
+                 ('reviewed', 'Reviewed'),
+                 ("approved", "Approved"),
+                 ("reupload_requested", "Reupload Requested")],
         default='pending'
     )
+
+    reupload_reason = models.TextField(blank=True, null=True)
+    approved_at = models.DateTimeField(null=True, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

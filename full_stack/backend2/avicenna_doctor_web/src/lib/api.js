@@ -121,3 +121,31 @@ export async function createSubmissionReport(id, payload) {
   });
   return handleResponse(response);
 }
+
+export async function approveSubmission(id) {
+  const token = localStorage.getItem("access_token");
+
+  const response = await fetch(`${API_BASE}/submissions/${id}/approve/`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  return handleResponse(response);
+}
+
+export async function requestReupload(id, reason) {
+  const token = localStorage.getItem("access_token");
+
+  const response = await fetch(`${API_BASE}/submissions/${id}/reupload/`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ reason }),
+  });
+
+  return handleResponse(response);
+}

@@ -29,6 +29,8 @@ urlpatterns = [
         SubmissionReportCreateView.as_view(),
         name="submission-report-create",
     ),
+    path("submissions/<int:id>/approve/", SubmissionApproveView.as_view(), name="submission-approve"),
+path("submissions/<int:id>/reupload/", SubmissionReuploadView.as_view(), name="submission-reupload"),
     path('patient/reports/', PatientReportsView.as_view(), name='patient-reports'), 
     path('notifications/', NotificationListView.as_view(), name='user-notifications'),
 ]
