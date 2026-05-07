@@ -37,12 +37,6 @@ The "short_class" value MUST be exactly ONE of the following words:
 - eczema
 - psoriasis
 - fungal
-- ringworm
-- tinea
-- hives
-- urticaria
-- dermatitis
-- rosacea
 - others
 
 If the condition is healthy, undetected, undetermined, or anything else not explicitly listed above, you MUST return "others" for "short_class".
@@ -140,12 +134,6 @@ ALLOWED_SHORT_CLASSES = [
     "eczema",
     "psoriasis",
     "fungal",
-    "ringworm",
-    "tinea",
-    "hives",
-    "urticaria",
-    "dermatitis",
-    "rosacea",
     "others",
 ]
 
@@ -283,14 +271,20 @@ Task:
 - Construct the text in exactly 4 paragraphs (Diagnosis, Model Evaluation, Clinical Reasoning, Treatment Approach) and place it in the "analysis" field of the JSON.
 - Also create "gemini_summary" as a maximum 50-word summary of the analysis in no more than 2 sentences.
 
-Classifier accuracy is %71.5, so be careful about result.
+Current 5-class classifier test accuracy is 84.0% with TTA-5, so still evaluate it carefully.
 External dermatology classifier top predictions:
 {classifier_summary}
+
+Classifier label meaning:
+- acne, eczema, fungal, and psoriasis are broad model buckets.
+- others is an out-of-scope bucket for findings that do not fit those four classes; do not treat "others" itself as a diagnosis.
+- If the classifier predicts others, first decide from the image whether the upload is non-dermatology content, poor quality, healthy skin, or a dermatology case outside the four named buckets.
+- Random objects, drinks, documents, screenshots, and other non-skin images must be handled as irrelevant uploads even if the classifier returned a skin-related label.
 
 Preferred style example:
 The most likely condition is eczema. More specifically, this appears most consistent with contact dermatitis of the hands. The overall clinical presentation strongly suggests an environmental irritant etiology rather than a primary infectious process.
 
-The model's primary prediction of "Eczema Photos" is highly accurate and supported by the visual features. Although its alternative underlying suggestion was "Tinea Ringworm Candidiasis", the characteristic raised scaly borders of a fungal infection are absent here. Therefore, the eczema prediction is visually and symptomatically confirmed.
+The model's primary prediction of "eczema" is highly accurate and supported by the visual features. Although its alternative hidden suggestion was "fungal", the characteristic raised scaly borders of a fungal infection are absent here. Therefore, the eczema prediction is visually and symptomatically confirmed.
 
 Clinical analysis reveals ill-defined erythematous plaques with deep fissures across the palmar surfaces. These visual findings, combined with the patient's reported worsening after frequent detergent exposure and intense localized pruritus, confidently rule out systemic conditions. Psoriasis is less likely due to the lack of distinct silvery scaling.
 

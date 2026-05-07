@@ -1,0 +1,65 @@
+{
+  "version": "CC_CLAHE_LAB_UNSHARP_HSVV_V2_IMPROVED",
+  "model_name": "swinv2_small_window8_256.ms_in1k",
+  "seed": 42,
+  "best_epoch": 44,
+  "best_val_f1w": 0.8100482297863483,
+  "best_val_loss_at_best": 0.7366078408716926,
+  "ema_used": false,
+  "tta_mode": "softmax_average",
+  "logit_bias_used": false,
+  "logit_bias": null,
+  "test_acc_tta5": 83.99503722084367,
+  "test_f1_weighted": 0.8395686998469409,
+  "test_f1_macro": 0.8468052382997691,
+  "val_acc_final_tta5": 81.01736972704715,
+  "val_f1_weighted_final_tta5": 0.8084675744344637,
+  "val_f1_macro_final_tta5": 0.817949039882512,
+  "class_names": [
+    "acne",
+    "eczema",
+    "fungal",
+    "psoriasis",
+    "others"
+  ],
+  "n_train": 6466,
+  "n_val": 806,
+  "n_test": 806,
+  "preprocessing": {
+    "color_constancy": {
+      "method": "ShadesOfGray",
+      "power": 6,
+      "percentile": 99.5,
+      "eps": 1e-06
+    },
+    "clahe": {
+      "space": "LAB",
+      "channel": "L",
+      "clip_limit": 0.5,
+      "tile_grid": [
+        8,
+        8
+      ],
+      "blend": 0.25
+    },
+    "unsharp": {
+      "space": "HSV",
+      "channel": "V",
+      "sigma": 0.8,
+      "amount": 0.1,
+      "threshold": 6.0
+    }
+  },
+  "changes_vs_83_50_base": {
+    "stage2_min_delta": "1e-3 -> 1e-4",
+    "stage2_patience": "6 -> 8",
+    "stage3_epochs": "22 -> 14",
+    "stage3_warmup": "3 -> 2",
+    "stage3_lr": "7e-6 -> 4.5e-6",
+    "stage3_head_lr": "1.5e-5 -> 1.2e-5",
+    "stage3_early_layer_lr": "reduced",
+    "best_selection": "val F1w with lower val_loss tie-breaker",
+    "tta": "validation-selected logits/softmax TTA",
+    "optional_logit_bias": "small validation-tuned bias for others confusion"
+  }
+}
