@@ -9,6 +9,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from django.shortcuts import get_object_or_404
 from .models import *
 from .serializers import *
+import requests
 from rest_framework import status
 from .utilities import *
 from rest_framework import viewsets
@@ -26,6 +27,9 @@ from django.conf import settings
 from django.http import FileResponse, Http404
 from rest_framework.permissions import BasePermission
 # Create your views here.
+
+ML_SERVICE_URL = "http://127.0.0.1:9000/analyze"
+ML_REQUEST_TIMEOUT = (5, 60)
 
 
 
@@ -308,35 +312,57 @@ class SkinAnalysisViewSet(viewsets.ModelViewSet):
 
         full_image_url = request.build_absolute_uri(instance.image.url)
 
-        ai_result = process_sync(
-            image_url=full_image_url,
-            case_id=str(instance.id),
-            image_id=f"img_{instance.id}"
+        image_file.seek(0)
+        files = {'file': (image_file.name, image_file.read(), image_file.content_type)}
+        
+        profile = getattr(request.user, 'patient_profile', None)
+        allergies = profile.allergies if profile else "None reported"
+        medications = profile.medications if profile else "None reported"
+        
+        past_cases = MedicalCase.objects.filter(
+            patient=request.user
+        ).exclude(
+            disease_type__isnull=True
+        ).exclude(
+            disease_type=""
+        ).values_list('disease_type', flat=True)
+        
+        unique_past_diseases = list(set(past_cases))
+        overall_history = ", ".join(unique_past_diseases) if unique_past_diseases else "None"
+
+        patient_info = (
+            f"Body Part: {instance.body_part}. "
+            f"Duration: {request.data.get('duration', 'N/A')}. "
+            f"Patient Comment: {request.data.get('comments', 'None')}. "
+            f"Known Allergies: {allergies}. "
+            f"Current Medications: {medications}. "
+            f"Patient's Overall Diagnostic History: {overall_history}."
         )
 
-        if ai_result:
-            metrics = ai_result.get("metrics", {}) or {}
-            extra_data = metrics.get("extra", {}) or {}
+        
+        data = {'patient_info': patient_info}
+
+        try:
+            ml_response = requests.post(
+                ML_SERVICE_URL,
+                files=files,
+                data=data,
+                timeout=ML_REQUEST_TIMEOUT,
+            )
+            ml_response.raise_for_status()
+            ml_data = ml_response.json()
+
+            clean_name = ml_data.get("model", {}).get("class_name", "Unknown")
+            confidence = ml_data.get("model", {}).get("probability", 0.0)
+            gemini_analysis = ml_data.get("gemini_analysis", "")
             
-            raw_prediction = extra_data.get("problem_type")
-            if not raw_prediction:
-                raw_prediction = metrics.get("condition", "Unknown")
-
-            clean_name = raw_prediction
-            if clean_name and clean_name != "Unknown":
-                clean_name = clean_name.replace(" Photos", "")
-                clean_name = clean_name.split(" - ")[0]
-                
-                if "Acne" in clean_name and "Rosacea" in clean_name:
-                    clean_name = "Acne or Rosacea"
-                elif "Malignant Lesions" in clean_name:
-                    clean_name = "Skin Lesion (Check Required)"
-
-            confidence = metrics.get("confidence", metrics.get("severity_score", 0.0))
+            print("Gemini says:", gemini_analysis)
 
             instance.prediction = clean_name
-            instance.confidence = round(float(confidence), 2)
+            instance.confidence = confidence
+            instance.ai_analysis = gemini_analysis
             instance.status = "analyzed"
+            
             if not medical_case.disease_type:
                 medical_case.disease_type = clean_name
                 medical_case.save(update_fields=['disease_type'])
@@ -348,12 +374,13 @@ class SkinAnalysisViewSet(viewsets.ModelViewSet):
                 "status": "analyzed",
                 "prediction": instance.prediction,
                 "confidence": instance.confidence,
-                "message": "AI Analysis complete.",
+                "ai_analysis": instance.ai_analysis,
+                "message": "Analysis complete.",
                 "medical_case_id": medical_case.id
             }, status=201)
-            
-        else:
-            print("AI Failed, using fallback...")
+
+        except requests.exceptions.RequestException as e:
+            print("Docker AI Failed:", e)
             instance.prediction = "Unknown"
             instance.status = "failed"
             instance.save()
@@ -363,7 +390,40 @@ class SkinAnalysisViewSet(viewsets.ModelViewSet):
                 "status": "failed",
                 "message": "AI server did not respond."
             }, status=500)
-        
+            
+        """
+            try:
+            ml_response = requests.post(fastapi_url, files=files, data=data)
+            ml_response.raise_for_status()
+            ml_data = ml_response.json()
+
+            gemini_short_class = ml_data.get("gemini_final_response_form", {}).get("class", "Unknown")
+            gemini_confidence = ml_data.get("gemini_final_response_form", {}).get("probability", 0.0)
+            gemini_analysis_text = ml_data.get("gemini_analysis", "No analysis provided.")
+
+            print("Gemini classified this as:", gemini_short_class)
+            instance.prediction = gemini_short_class 
+            
+            instance.comments = gemini_analysis_text 
+            
+            instance.confidence = gemini_confidence
+            instance.status = "analyzed"
+            
+            if not medical_case.disease_type:
+                medical_case.disease_type = gemini_short_class
+                medical_case.save(update_fields=['disease_type'])
+                
+            instance.save()
+            
+            return Response({
+                "id": instance.id,
+                "status": "analyzed",
+                "prediction": instance.prediction,
+                "confidence": instance.confidence,
+                "message": "Analysis complete.",
+                "medical_case_id": medical_case.id
+            }, status=201) """
+            
     @action(detail=True, methods=['get'])
     def check_status(self, request, pk=None):
         instance = self.get_object()
@@ -596,3 +656,32 @@ class SecureMediaView(APIView):
             return FileResponse(open(full_path, 'rb'))
         else:
             raise Http404("Image not found.")
+        
+class AnalyzeSkinView(APIView):
+    permission_classes = [IsAuthenticated] 
+    parser_classes = [MultiPartParser, FormParser] 
+
+    def post(self, request):
+        image_file = request.FILES.get('file')
+        patient_info = request.data.get('patient_info', 'No specific symptoms reported.')
+
+        if not image_file:
+            return Response({"error": "No image provided"}, status=400)
+
+        files = {'file': (image_file.name, image_file.read(), image_file.content_type)}
+        data = {'patient_info': patient_info}
+
+        try:
+            ml_response = requests.post(
+                ML_SERVICE_URL,
+                files=files,
+                data=data,
+                timeout=ML_REQUEST_TIMEOUT,
+            )
+            ml_response.raise_for_status() 
+            ml_data = ml_response.json()
+
+            return Response(ml_data)
+
+        except requests.exceptions.RequestException as e:
+            return Response({"error": f"Server Error: {str(e)}"}, status=503)

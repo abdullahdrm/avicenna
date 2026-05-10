@@ -119,6 +119,9 @@ class DoctorProfile(models.Model):
 
 
 class Submission(models.Model):
+    class Status(models.TextChoices):
+        PENDING = 'pending', 'Pending'
+        REVIEWED = 'reviewed', 'Reviewed'
 
     skin_analysis = models.OneToOneField(
         'SkinAnalysis', 
@@ -142,8 +145,9 @@ class Submission(models.Model):
     )
     
     status = models.CharField(
-        choices=[('pending', 'Pending'), ('reviewed', 'Reviewed')],
-        default='pending'
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PENDING
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -161,8 +165,9 @@ class Submission(models.Model):
 
     class Meta:
         indexes = [
-            models.Index(fields=['doctor', 'created_at']),
-            models.Index(fields=['patient', 'created_at']),
+            models.Index(fields=['doctor', '-created_at']),
+            models.Index(fields=['patient', '-updated_at']),
+            models.Index(fields=['doctor', 'status']),
         ]
 
     def __str__(self):
@@ -188,6 +193,13 @@ class Medication(models.Model):
     frequency = models.CharField(max_length=255)
     
 class SkinAnalysis(models.Model):
+    class Status(models.TextChoices):
+        PROCESSING = 'processing', 'Processing'
+        ANALYZED = 'analyzed', 'Analyzed'
+        REVIEW = 'review', 'Under Review'
+        REVIEWED = 'reviewed', 'Reviewed'
+        FAILED = 'failed', 'Failed'
+
     job_id = models.CharField(max_length=100, blank=True, null=True)
     image = models.ImageField(upload_to='skin_scans/')
     body_part = models.CharField(max_length=100, default="Face")
@@ -196,15 +208,23 @@ class SkinAnalysis(models.Model):
     medical_case = models.ForeignKey('MedicalCase', on_delete=models.CASCADE, related_name='timeline_images', null=True, blank=True)
     status = models.CharField(
         max_length=20,
-        choices=[('analyzed', 'Analyzed'), ('review', 'Under Review'), ('reviewed', 'Reviewed')],
-        default='review'
+        choices=Status.choices,
+        default=Status.REVIEW
     )
     answers = models.JSONField(default=dict, blank=True)
     patient = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='skin_analyses', null=True) 
     pain_level = models.IntegerField(default=0)
     duration = models.CharField(max_length=100, blank=True, null=True)
     comments = models.TextField(blank=True, null=True)
+    ai_analysis = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['patient', '-created_at']),
+            models.Index(fields=['medical_case', 'created_at']),
+            models.Index(fields=['status']),
+        ]
 
     def __str__(self):
         return f"{self.body_part} - {self.created_at.strftime('%Y-%m-%d')}"
@@ -244,6 +264,12 @@ class MedicalCase(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     is_active = models.BooleanField(default=True) 
 
+    class Meta:
+        indexes = [
+            models.Index(fields=['patient', '-created_at']),
+            models.Index(fields=['patient', 'is_active']),
+        ]
+
     def __str__(self):
         return f"{self.title} - {self.patient.username}"
 
@@ -254,7 +280,11 @@ class Notification(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     submission = models.ForeignKey('Submission', on_delete=models.CASCADE, null=True, blank=True)
     class Meta:
-        ordering = ['-created_at'] 
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', '-created_at']),
+            models.Index(fields=['user', 'is_read']),
+        ]
 
     def __str__(self):
         return f"Notification for {self.user.username}: {self.message}"
@@ -275,4 +305,5 @@ class MedicalAuditLog(models.Model):
     ip_address = models.GenericIPAddressField(null=True, blank=True)
 
     def __str__(self):
-        return f"[{self.timestamp}] {self.user.username} {self.action} {self.resource_type} #{self.resource_id}"
+        username = self.user.username if self.user else "deleted-user"
+        return f"[{self.timestamp}] {username} {self.action} {self.resource_type} #{self.resource_id}"

@@ -3,6 +3,8 @@ from rest_framework.routers import DefaultRouter
 from .views import *
 from rest_framework_simplejwt.views import TokenRefreshView
 
+from avicenna_api import views
+
 router = DefaultRouter()
 
 
@@ -32,4 +34,5 @@ urlpatterns = [
     path('patient/reports/', PatientReportsView.as_view(), name='patient-reports'), 
     path('notifications/', NotificationListView.as_view(), name='user-notifications'),
     path('notifications/<int:id>/read/', MarkNotificationReadView.as_view(), name='mark-notif-read'),
+    path('analyze-skin/', views.AnalyzeSkinView.as_view(), name='analyze-skin'),
 ]

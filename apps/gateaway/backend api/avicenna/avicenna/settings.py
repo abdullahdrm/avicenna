@@ -85,11 +85,15 @@ ASGI_APPLICATION = 'avicenna.asgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'avicenna',           # The "Initial database name" you set at the bottom of the AWS page
-        'USER': 'avicenna_admin',           # Your Master username
-        'PASSWORD': 'xijduv-zimzow-tutKa8',  # The password you created
-        'HOST': 'avicenna-db.cc1msam08f8g.us-east-1.rds.amazonaws.com',  # Paste the long RDS endpoint URL here
+        'NAME': 'avicenna',
+        'USER': 'avicenna_admin',
+        'PASSWORD': 'xijduv-zimzow-tutKa8',
+        'HOST': 'avicenna-db.cc1msam08f8g.us-east-1.rds.amazonaws.com',
         'PORT': '5432',
+        'CONN_MAX_AGE': 0,
+        'OPTIONS': {
+            'connect_timeout': 10,
+        },
     }
 }
 

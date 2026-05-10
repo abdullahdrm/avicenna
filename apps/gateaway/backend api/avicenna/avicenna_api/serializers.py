@@ -227,6 +227,7 @@ class SkinAnalysisSerializer(serializers.ModelSerializer):
             'pain_level', 
             'duration',   
             'comments',   
+            'ai_analysis',
             'answers',    
             'created_at', 
             'formatted_date',
@@ -270,6 +271,7 @@ class SubmissionDetailSerializer(serializers.ModelSerializer):
                     "pain_level": img.pain_level,
                     "duration": img.duration,
                     "comments": img.comments,
+                    "ai_analysis": img.ai_analysis,
                     "answers": img.answers if img.answers else {},
                     "body_part": img.body_part,
                     "confidence": img.confidence,
@@ -309,6 +311,10 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         return user
     
 class PatientReportSerializer(serializers.ModelSerializer):
+    submission_id = serializers.IntegerField(source='id', read_only=True)
+    skin_analysis_id = serializers.IntegerField(source='skin_analysis.id', read_only=True)
+    image = serializers.SerializerMethodField()
+
     doctor_name = serializers.SerializerMethodField()
     diagnosis = serializers.CharField(source='report.diagnosis', default="No diagnosis yet")
     doctor_comment = serializers.CharField(source='report.comment', default="")
@@ -318,20 +324,32 @@ class PatientReportSerializer(serializers.ModelSerializer):
     timeline_images = serializers.SerializerMethodField()
     place = serializers.CharField(source='skin_analysis.medical_case.title', default="Unknown Area", read_only=True)
     status = serializers.CharField()
+
     class Meta:
         model = Submission
         fields = [
-            'id', 
+            'id',
+            'submission_id',
+            'skin_analysis_id',
+            'image',
             'status',
-            'place',        
-            'doctor_name', 
-            'diagnosis', 
+            'place',
+            'doctor_name',
+            'diagnosis',
             'doctor_comment',
             'medications',
             'visit_required',
             'date',
-            'timeline_images'
+            'timeline_images',
         ]
+
+    def get_image(self, obj):
+        request = self.context.get('request')
+        image = obj.skin_analysis.image if obj.skin_analysis else None
+        if not image:
+            return None
+        url = image.url
+        return request.build_absolute_uri(url) if request else url
 
     def get_doctor_name(self, obj):
         return f"Dr. {obj.doctor.last_name}" if obj.doctor else "Unknown Doctor"
@@ -339,10 +357,11 @@ class PatientReportSerializer(serializers.ModelSerializer):
     def get_medications(self, obj):
         if hasattr(obj, 'report'):
             return [
-                f"{m.name} ({m.frequency})" 
+                f"{m.name} ({m.frequency})"
                 for m in obj.report.medications.all()
             ]
         return []
+
     def get_timeline_images(self, obj):
         case = obj.skin_analysis.medical_case
         if case:
@@ -352,13 +371,23 @@ class PatientReportSerializer(serializers.ModelSerializer):
                 url = img.image.url if img.image else None
                 if url and request:
                     url = request.build_absolute_uri(url)
+
+                submission = getattr(img, 'submission', None)
+
                 if url:
-                    images.append({"image": url, "date": img.created_at.strftime('%b %d')})
+                    images.append({
+                        "id": img.id,
+                        "skin_analysis_id": img.id,
+                        "submission_id": submission.id if submission else None,
+                        "image": url,
+                        "date": img.created_at.strftime('%b %d'),
+                    })
             return images
         return []
 
     def get_date(self, obj):
-        return obj.updated_at.strftime('%b %d, %Y')
+        return obj.skin_analysis.created_at.strftime('%b %d, %Y')
+
     
 
 class MedicalCaseSerializer(serializers.ModelSerializer):
