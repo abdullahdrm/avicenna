@@ -8,7 +8,8 @@ from avicenna_api import views
 router = DefaultRouter()
 
 
-router.register(r'skin-analysis', SkinAnalysisViewSet, basename='skin-analysis')
+router.register(r'skin-analysis', SkinAnalysisViewSet,
+                basename='skin-analysis')
 router.register(r'articles', ArticleViewSet)
 router.register(r'tips', DailyTipViewSet)
 router.register(r'cases', MedicalCaseViewSet, basename='medicalcase')
@@ -21,16 +22,25 @@ urlpatterns = [
     path('authenticated/', is_authenticated),
     path('profile/', PatientProfileView.as_view(), name='profile'),
     # Doctor
-    path('doctor/submissions/', DoctorSubmissionsView.as_view(), name='doctor-submissions'),
-    path('submissions/<int:pk>/', DoctorSubmissionDetailView.as_view(), name='submission-detail'),
+    path('doctor/submissions/', DoctorSubmissionsView.as_view(),
+         name='doctor-submissions'),
+    path('submissions/<int:pk>/', DoctorSubmissionDetailView.as_view(),
+         name='submission-detail'),
     path('doctor/profile/', DoctorProfileView.as_view(), name='doctor-me'),
     path("doctor/dashboard/", DoctorDashboardView.as_view()),
-    path('doctor/submissions/<int:pk>/', DoctorSubmissionDetailView.as_view(), name='doctor-submission-detail'),
+    path('doctor/submissions/<int:pk>/',
+         DoctorSubmissionDetailView.as_view(), name='doctor-submission-detail'),
     path(
         "submissions/<int:id>/report/",
         SubmissionReportCreateView.as_view(),
         name="submission-report-create",
     ),
+    path('patient/reports/', PatientReportsView.as_view(), name='patient-reports'),
+    path('notifications/', NotificationListView.as_view(),
+         name='user-notifications'),
+    path('notifications/<int:id>/read/',
+         MarkNotificationReadView.as_view(), name='mark-notif-read'),
+    path('chat/', ChatView.as_view(), name='chat'),
     path('patient/reports/', PatientReportsView.as_view(), name='patient-reports'), 
     path('notifications/', NotificationListView.as_view(), name='user-notifications'),
     path('notifications/<int:id>/read/', MarkNotificationReadView.as_view(), name='mark-notif-read'),
