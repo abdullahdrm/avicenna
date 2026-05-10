@@ -1,32 +1,20 @@
 import { Tabs, router } from 'expo-router';
-import {
-  BookOpen,
-  FileText,
-  Home,
-  MessageCircle,
-  Upload,
-  User,
-} from 'lucide-react-native';
+import { BookOpen, FileText, Home, MessageCircle, Upload, User } from 'lucide-react-native';
 import React, { useRef } from 'react';
-import {
-  Animated,
-  PanResponder,
-  Pressable,
-  View,
-} from 'react-native';
+import { Animated, PanResponder, Pressable, View } from 'react-native';
+import { usePatientTheme } from '../../lib/PatientThemeContext';
 
 export default function TabLayout() {
+  const { colors } = usePatientTheme();
   const pan = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
-
   const lastPosition = useRef({ x: 0, y: 0 });
   const isDragging = useRef(false);
 
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => false,
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        return Math.abs(gestureState.dx) > 5 || Math.abs(gestureState.dy) > 5;
-      },
+      onMoveShouldSetPanResponder: (_, gestureState) =>
+        Math.abs(gestureState.dx) > 5 || Math.abs(gestureState.dy) > 5,
       onPanResponderGrant: () => {
         isDragging.current = true;
         pan.setOffset({
@@ -35,10 +23,9 @@ export default function TabLayout() {
         });
         pan.setValue({ x: 0, y: 0 });
       },
-      onPanResponderMove: Animated.event(
-        [null, { dx: pan.x, dy: pan.y }],
-        { useNativeDriver: false }
-      ),
+      onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], {
+        useNativeDriver: false,
+      }),
       onPanResponderRelease: (_, gestureState) => {
         pan.flattenOffset();
 
@@ -51,10 +38,10 @@ export default function TabLayout() {
           isDragging.current = false;
         }, 100);
       },
-    })
+    }),
   ).current;
 
-  const handlePress = () => {
+  const handleChatPress = () => {
     if (!isDragging.current) {
       router.push('/chat');
     }
@@ -62,35 +49,36 @@ export default function TabLayout() {
 
   return (
     <View style={{ flex: 1 }}>
-      <Tabs
-        screenOptions={{
-          tabBarActiveTintColor: '#2563EB',
-          tabBarInactiveTintColor: '#9CA3AF',
-          headerShown: false,
-          tabBarStyle: {
-            position: 'absolute',
-            bottom: 45,
-            left: 20,
-            right: 20,
-            backgroundColor: 'white',
-            borderRadius: 15,
-            height: 65,
-            elevation: 5,
-            shadowColor: '#fffcfcff',
-            shadowOffset: { width: 0, height: 5 },
-            shadowOpacity: 0.1,
-            shadowRadius: 5,
-            paddingBottom: 0,
-            paddingTop: 0,
-            borderTopWidth: 0,
-          },
-          tabBarLabelStyle: {
-            fontSize: 12,
-            fontWeight: '500',
-            marginTop: 1,
-          },
-        }}
-      >
+      <Tabs screenOptions={{
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.faintText,
+        headerShown: false,
+        tabBarStyle: {
+          position: 'absolute',
+          bottom: 45,
+          left: 20,
+          right: 20,
+          backgroundColor: colors.surface,
+          borderRadius: 15,
+          height: 65,
+          elevation: 5,
+          shadowColor: colors.shadow,
+          shadowOffset: { width: 0, height: 5 },
+          shadowOpacity: 0.1,
+          shadowRadius: 5,
+          paddingBottom: 0,
+          paddingTop: 0,
+          borderTopWidth: 0,
+          borderWidth: colors.isDark ? 1 : 0,
+          borderColor: colors.border,
+        },
+        tabBarLabelStyle: {
+          fontSize: 12,
+          fontWeight: '500',
+          marginTop: 1,
+        }
+      }}>
+
         <Tabs.Screen
           name="index"
           options={{
@@ -110,16 +98,14 @@ export default function TabLayout() {
           options={{
             title: '',
             tabBarIcon: () => (
-              <View
-                style={{
-                  width: 70,
-                  height: 70,
-                  borderRadius: 50,
-                  backgroundColor: '#2563EB',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                }}
-              >
+              <View style={{
+                width: 70,
+                height: 70,
+                borderRadius: 50,
+                backgroundColor: colors.primary,
+                justifyContent: 'center',
+                alignItems: 'center',
+              }}>
                 <Upload size={24} color="white" />
               </View>
             ),
@@ -139,6 +125,7 @@ export default function TabLayout() {
             tabBarIcon: ({ color }) => <User size={24} color={color} />,
           }}
         />
+
       </Tabs>
 
       <Animated.View
@@ -152,16 +139,16 @@ export default function TabLayout() {
         }}
       >
         <Pressable
-          onPress={handlePress}
+          onPress={handleChatPress}
           style={{
             width: 60,
             height: 60,
             borderRadius: 30,
-            backgroundColor: '#2563EB',
+            backgroundColor: colors.primary,
             justifyContent: 'center',
             alignItems: 'center',
             elevation: 8,
-            shadowColor: '#000',
+            shadowColor: colors.shadow,
             shadowOffset: { width: 0, height: 4 },
             shadowOpacity: 0.2,
             shadowRadius: 4,

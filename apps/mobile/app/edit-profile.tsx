@@ -1,36 +1,36 @@
 import { useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import {
-    Activity,
-    AlertCircle,
-    ArrowLeft,
-    Calendar,
-    FileText,
-
-
-    Pill,
-    Ruler,
-    Save,
-    User,
-    Weight
+  Activity,
+  AlertCircle,
+  ArrowLeft,
+  Calendar,
+  FileText,
+  Pill,
+  Ruler,
+  Save,
+  User,
+  Weight
 } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { usePatientTheme } from '../lib/PatientThemeContext';
 
-const API_URL = 'http://10.239.178.43:8000/api'; 
+const API_URL = 'http://10.136.227.43:8000/api';
 
 export default function EditProfileScreen() {
   const router = useRouter();
+  const { colors } = usePatientTheme();
   const [loading, setLoading] = useState(true);
 
   const [name, setName] = useState('');
@@ -39,7 +39,7 @@ export default function EditProfileScreen() {
   const [age, setAge] = useState('');
   const [skinType, setSkinType] = useState('');
   const [allergies, setAllergies] = useState('');
-  
+
   const [conditions, setConditions] = useState('');
   const [medications, setMedications] = useState('');
 
@@ -50,7 +50,10 @@ export default function EditProfileScreen() {
   const loadProfile = async () => {
     try {
       const token = await SecureStore.getItemAsync('access_token');
-      if (!token) return;
+      if (!token) {
+        router.replace('/login');
+        return;
+      }
 
       const userJson = await SecureStore.getItemAsync('user');
       if (userJson) {
@@ -69,11 +72,12 @@ export default function EditProfileScreen() {
         setAge(data.age?.toString() || '');
         setSkinType(data.skin_type || '');
         setAllergies(data.allergies || '');
-        
+
         setConditions(data.medical_conditions || '');
         setMedications(data.medications || '');
       }
     } catch (error) {
+      console.error('Edit profile load error:', error);
       Alert.alert('Error', 'Network connection failed');
     } finally {
       setLoading(false);
@@ -84,14 +88,18 @@ export default function EditProfileScreen() {
     try {
       setLoading(true);
       const token = await SecureStore.getItemAsync('access_token');
-      
+      if (!token) {
+        router.replace('/login');
+        return;
+      }
+
       const payload = {
         height: parseFloat(height) || null,
         weight: parseFloat(weight) || null,
         age: parseInt(age) || null,
-        
+
         skin_type: skinType.toLowerCase(),
-        
+
         allergies: allergies,
         medical_conditions: conditions,
         medications: medications,
@@ -99,9 +107,9 @@ export default function EditProfileScreen() {
 
       const response = await fetch(`${API_URL}/profile/`, {
         method: 'PUT',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}` 
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify(payload),
       });
@@ -116,6 +124,7 @@ export default function EditProfileScreen() {
         console.log(errorData);
       }
     } catch (error) {
+      console.error('Edit profile save error:', error);
       Alert.alert('Error', 'Network error');
     } finally {
       setLoading(false);
@@ -124,19 +133,19 @@ export default function EditProfileScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.container, styles.center]}>
+      <SafeAreaView style={[styles.container, styles.center, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color="#2563EB" />
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <ArrowLeft size={24} color="#111827" />
+          <ArrowLeft size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Edit Profile</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Edit Profile</Text>
         <TouchableOpacity onPress={handleSave}>
           <Text style={styles.saveText}>Save</Text>
         </TouchableOpacity>
@@ -144,36 +153,37 @@ export default function EditProfileScreen() {
 
       <ScrollView style={styles.content}>
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Full Name</Text>
-          <View style={styles.inputWrapper}>
-            <User size={20} color="#9CA3AF" />
-            <TextInput style={styles.input} value={name} onChangeText={setName} />
+          <Text style={[styles.label, { color: colors.mutedText }]}>Full Name</Text>
+          <View style={[styles.inputWrapper, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <User size={20} color={colors.faintText} />
+            <TextInput style={[styles.input, { color: colors.text }]} value={name} onChangeText={setName} placeholderTextColor={colors.faintText} />
           </View>
         </View>
 
         <View style={styles.row}>
           <View style={[styles.inputGroup, { flex: 1 }]}>
-            <Text style={styles.label}>Age</Text>
-            <View style={styles.inputWrapper}>
-              <Calendar size={20} color="#9CA3AF" />
-              <TextInput 
-                style={styles.input} 
-                value={age} 
-                onChangeText={setAge} 
-                keyboardType="numeric" 
+            <Text style={[styles.label, { color: colors.mutedText }]}>Age</Text>
+            <View style={[styles.inputWrapper, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Calendar size={20} color={colors.faintText} />
+              <TextInput
+                style={[styles.input, { color: colors.text }]}
+                value={age}
+                onChangeText={setAge}
+                keyboardType="numeric"
                 placeholder="Years"
+                placeholderTextColor={colors.faintText}
               />
             </View>
           </View>
           <View style={[styles.inputGroup, { flex: 1 }]}>
-            <Text style={styles.label}>Height (cm)</Text>
-            <View style={styles.inputWrapper}>
-              <Ruler size={20} color="#9CA3AF" />
-              <TextInput 
-                style={styles.input} 
-                value={height} 
-                onChangeText={setHeight} 
-                keyboardType="numeric" 
+            <Text style={[styles.label, { color: colors.mutedText }]}>Height (cm)</Text>
+            <View style={[styles.inputWrapper, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Ruler size={20} color={colors.faintText} />
+              <TextInput
+                style={[styles.input, { color: colors.text }]}
+                value={height}
+                onChangeText={setHeight}
+                keyboardType="numeric"
               />
             </View>
           </View>
@@ -181,66 +191,70 @@ export default function EditProfileScreen() {
 
         <View style={styles.row}>
           <View style={[styles.inputGroup, { flex: 1 }]}>
-            <Text style={styles.label}>Weight (kg)</Text>
-            <View style={styles.inputWrapper}>
-              <Weight size={20} color="#9CA3AF" />
-              <TextInput 
-                style={styles.input} 
-                value={weight} 
-                onChangeText={setWeight} 
-                keyboardType="numeric" 
+            <Text style={[styles.label, { color: colors.mutedText }]}>Weight (kg)</Text>
+            <View style={[styles.inputWrapper, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Weight size={20} color={colors.faintText} />
+              <TextInput
+                style={[styles.input, { color: colors.text }]}
+                value={weight}
+                onChangeText={setWeight}
+                keyboardType="numeric"
               />
             </View>
           </View>
           <View style={[styles.inputGroup, { flex: 1 }]}>
-            <Text style={styles.label}>Skin Type</Text>
-            <View style={styles.inputWrapper}>
-              <Activity size={20} color="#9CA3AF" />
-              <TextInput 
-                style={styles.input} 
-                value={skinType} 
-                onChangeText={setSkinType} 
+            <Text style={[styles.label, { color: colors.mutedText }]}>Skin Type</Text>
+            <View style={[styles.inputWrapper, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Activity size={20} color={colors.faintText} />
+              <TextInput
+                style={[styles.input, { color: colors.text }]}
+                value={skinType}
+                onChangeText={setSkinType}
                 placeholder="Oily/Dry"
+                placeholderTextColor={colors.faintText}
               />
             </View>
           </View>
         </View>
 
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Allergies</Text>
-          <View style={styles.inputWrapper}>
-            <AlertCircle size={20} color="#9CA3AF" />
-            <TextInput 
-              style={styles.input} 
-              value={allergies} 
-              onChangeText={setAllergies} 
+          <Text style={[styles.label, { color: colors.mutedText }]}>Allergies</Text>
+          <View style={[styles.inputWrapper, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <AlertCircle size={20} color={colors.faintText} />
+            <TextInput
+              style={[styles.input, { color: colors.text }]}
+              value={allergies}
+              onChangeText={setAllergies}
               placeholder="List any allergies..."
+              placeholderTextColor={colors.faintText}
             />
           </View>
         </View>
 
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Medical Conditions</Text>
-          <View style={styles.inputWrapper}>
-            <FileText size={20} color="#9CA3AF" />
-            <TextInput 
-              style={styles.input} 
-              value={conditions} 
-              onChangeText={setConditions} 
+          <Text style={[styles.label, { color: colors.mutedText }]}>Medical Conditions</Text>
+          <View style={[styles.inputWrapper, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <FileText size={20} color={colors.faintText} />
+            <TextInput
+              style={[styles.input, { color: colors.text }]}
+              value={conditions}
+              onChangeText={setConditions}
               placeholder="e.g. Diabetes, Eczema..."
+              placeholderTextColor={colors.faintText}
             />
           </View>
         </View>
 
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Medications</Text>
-          <View style={styles.inputWrapper}>
-            <Pill size={20} color="#9CA3AF" />
-            <TextInput 
-              style={styles.input} 
-              value={medications} 
-              onChangeText={setMedications} 
+          <Text style={[styles.label, { color: colors.mutedText }]}>Medications</Text>
+          <View style={[styles.inputWrapper, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Pill size={20} color={colors.faintText} />
+            <TextInput
+              style={[styles.input, { color: colors.text }]}
+              value={medications}
+              onChangeText={setMedications}
               placeholder="List current medications..."
+              placeholderTextColor={colors.faintText}
             />
           </View>
         </View>

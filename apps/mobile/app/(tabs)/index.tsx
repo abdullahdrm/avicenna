@@ -1,10 +1,11 @@
 import { useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
-import { Bell, Calendar, CheckCircle, FileText, Upload } from 'lucide-react-native';
-import React, { useEffect, useState } from 'react';
+import { Calendar, CheckCircle, FileText, Upload } from 'lucide-react-native';
+import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLanguage } from '../../lib/LanguageContext';
+import { usePatientTheme } from '../../lib/PatientThemeContext';
 
 const formatTimeAgo = (dateString: string) => {
   if (!dateString) return 'Recently';
@@ -24,7 +25,7 @@ const formatTimeAgo = (dateString: string) => {
 
 interface SkinAnalysis {
   id: number;
-  image: string | null; 
+  image: string | null;
   body_part: string;
   status: string;
   prediction: string | null;
@@ -44,13 +45,13 @@ const Badge = ({ text, color = '#EFF6FF', textColor = '#2563EB' }: any) => (
   </View>
 );
 
-const StatCard = ({ value, label }: any) => (
-  <View style={styles.statCard}>
-    <Text style={styles.statValue}>{value}</Text>
-    <Text style={styles.statLabel}>{label}</Text>
+const StatCard = ({ value, label, colors }: any) => (
+  <View style={[styles.statCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+    <Text style={[styles.statValue, { color: colors.text }]}>{value}</Text>
+    <Text style={[styles.statLabel, { color: colors.mutedText }]}>{label}</Text>
   </View>
 );
-const ProgressTracker = ({ status, t }: { status: string; t: any }) => {
+const ProgressTracker = ({ status, t, colors }: { status: string; t: any; colors: any }) => {
   const currentStatus = status?.toLowerCase() || 'pending';
 
   const stages = [
@@ -62,7 +63,7 @@ const ProgressTracker = ({ status, t }: { status: string; t: any }) => {
   const getStageIndex = () => {
     if (currentStatus === 'reviewed' || currentStatus === 'completed') return 2;
     if (currentStatus === 'analyzed' || currentStatus === 'analyzing' || currentStatus === 'review') return 1;
-    return 0; 
+    return 0;
   };
 
   const currentIndex = getStageIndex();
@@ -77,14 +78,15 @@ const ProgressTracker = ({ status, t }: { status: string; t: any }) => {
           <View key={stage.id} style={styles.stageWrapper}>
             <View style={styles.stageBlock}>
               <View style={[
-                styles.circle, 
+                styles.circle,
                 isCompleted ? styles.circleActive : styles.circleInactive
               ]}>
                 {isCompleted && <Text style={styles.checkMark}>✓</Text>}
               </View>
               <Text style={[
                 styles.stageText,
-                isCompleted ? styles.textActive : styles.textInactive
+                isCompleted ? styles.textActive : styles.textInactive,
+                { color: isCompleted ? colors.text : colors.faintText }
               ]}>
                 {stage.label}
               </Text>
@@ -105,15 +107,18 @@ const ProgressTracker = ({ status, t }: { status: string; t: any }) => {
 export default function HomeScreen() {
   const router = useRouter();
   const { t } = useLanguage();
+  const { colors } = usePatientTheme();
+  const scrollViewRef = useRef<ScrollView>(null);
 
   const [reports, setReports] = useState<SkinAnalysis[]>([]);
   const [loading, setLoading] = useState(true);
   const [daysJoined, setDaysJoined] = useState(0);
   const [notifications, setNotifications] = useState<any[]>([]);
+  const [notificationsSectionY, setNotificationsSectionY] = useState(0);
   const [userId, setUserId] = useState<string | null>(null);
   const [authToken, setAuthToken] = useState<string | null>(null);
 
-  const BASE_URL = 'http://10.239.178.43:8000';
+  const BASE_URL = 'http://10.136.227.43:8000';
   const API_URL = `${BASE_URL}/api/skin-analysis/`;
   const PROFILE_URL = `${BASE_URL}/api/profile/`;
 
@@ -134,8 +139,8 @@ export default function HomeScreen() {
             joined.setHours(0, 0, 0, 0);
             now.setHours(0, 0, 0, 0);
             const diffTime = now.getTime() - joined.getTime();
-            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)); 
-            setDaysJoined(diffDays); 
+            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+            setDaysJoined(diffDays);
           }
       }
   } catch (error) {
@@ -150,12 +155,12 @@ export default function HomeScreen() {
       const response = await fetch(API_URL, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
-      
+
       if (!response.ok) {
         setLoading(false);
         return;
       }
-      
+
       const json = await response.json();
       let data = [];
       if (Array.isArray(json)) {
@@ -192,10 +197,10 @@ export default function HomeScreen() {
           id: n.id,
           text: n.message,
           time: formatTimeAgo(n.created_at),
-          isRead: n.is_read,          
-          submissionId: n.submission    
+          isRead: n.is_read,
+          submissionId: n.submission
         }));
-        
+
         setNotifications(formattedNotifs);
       }
     } catch (error) {
@@ -203,67 +208,101 @@ export default function HomeScreen() {
     }
   };
 
-  useEffect(() => {
-    fetchReports();
-    fetchProfile(); 
-    fetchSavedNotifications();
-
-  }, []);
-  useEffect(() => {
-    const loadTokenForImages = async () => {
-      const token = await SecureStore.getItemAsync('access_token');
-      setAuthToken(token);
-    };
-    loadTokenForImages();
-  }, []);
-  const getUserIdFromToken = async () => {
+  const getUserIdFromToken = async (token: string) => {
     try {
-      const token = await SecureStore.getItemAsync('access_token');
       if (token) {
         const payloadBase64 = token.split('.')[1];
         const decodedPayload = JSON.parse(atob(payloadBase64));
-        setUserId(decodedPayload.user_id);
+        return decodedPayload.user_id;
       }
     } catch (error) {
       console.error("Error decoding token:", error);
     }
+    return null;
   };
 
   useEffect(() => {
-    getUserIdFromToken();
+    const initializeApp = async () => {
+      try {
+        const token = await SecureStore.getItemAsync('access_token');
+
+        if (!token) return;
+
+        setAuthToken(token);
+
+        const userIdFromToken = await getUserIdFromToken(token);
+        if (userIdFromToken) {
+          setUserId(userIdFromToken);
+        }
+
+        await Promise.all([
+          fetchReports(),
+          fetchProfile(),
+          fetchSavedNotifications()
+        ]);
+      } catch (error) {
+        console.error("Error initializing app:", error);
+      }
+    };
+
+    initializeApp();
   }, []);
+
   useEffect(() => {
     if (!userId) return;
-    const wsUrl = `ws://10.239.178.43:8000/ws/notifications/${userId}/`;
+
+    const wsUrl = `ws://10.136.227.43:8000/ws/notifications/${userId}/`;
     const ws = new WebSocket(wsUrl);
+    let wsConnected = false;
+
     ws.onopen = () => {
       console.log('Live WebSocket Connected!');
+      wsConnected = true;
     };
+
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
       console.log('NEW LIVE MESSAGE:', data.message);
       setNotifications(prev => [
-        { id: Date.now(), text: data.message, time: 'Just now' },
+        { id: Date.now(), text: data.message, time: 'Just now', isRead: false, submissionId: data.submission },
         ...prev
       ]);
     };
 
+    ws.onclose = () => {
+      console.log('WebSocket disconnected, falling back to polling');
+      wsConnected = false;
+    };
+
+    ws.onerror = (error) => {
+      console.error('WebSocket error:', error);
+      wsConnected = false;
+    };
+
+    const pollInterval = setInterval(async () => {
+      if (!wsConnected) {
+        console.log('Polling for new notifications...');
+        fetchSavedNotifications();
+      }
+    }, 10000);
+
     return () => {
+      clearInterval(pollInterval);
       ws.close();
     };
   }, [userId]);
   const getImageUrl = (path: string | null) => {
     if (!path) return null;
-    if (path.startsWith('http')) return path; 
+    if (path.startsWith('http')) return path;
     return `${BASE_URL}${path}`;
   };
   const handleReadNotification = async (notifId: number, submissionId: number) => {
-    setNotifications(prev => 
+    setNotifications(prev =>
       prev.map(n => n.id === notifId ? { ...n, isRead: true } : n)
     );
 
     if (submissionId) {
-      router.push(`/report/view/${submissionId}`); 
+      router.push(`/report/view/${submissionId}`);
     }
 
     try {
@@ -277,37 +316,42 @@ export default function HomeScreen() {
     }
   };
 
-    
+
   const analyzedCount = reports.filter(r => {
     const s = r.status?.toLowerCase() || '';
     return s === 'analyzed' || s === 'review' || s === 'reviewed';
   }).length;
+  const unreadNotificationsCount = notifications.filter(n => !n.isRead).length;
+
+  const scrollToNotifications = () => {
+    scrollViewRef.current?.scrollTo({
+      y: Math.max(notificationsSectionY - 12, 0),
+      animated: true,
+    });
+  };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.scrollView} contentContainerStyle={{ paddingBottom: 20 }}>
-        
-        <View style={styles.header}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <ScrollView ref={scrollViewRef} style={styles.scrollView} contentContainerStyle={{ paddingBottom: 20 }}>
+
+        <View style={[styles.header, { backgroundColor: colors.surface }]}>
           <View>
-            <Text style={styles.greeting}>{t('homeScreen.welcomeBack')}</Text>
-            <Text style={styles.subGreeting}>{t('homeScreen.trackSkinHealth')}</Text>
+            <Text style={[styles.greeting, { color: colors.text }]}>{t('homeScreen.welcomeBack')}</Text>
+            <Text style={[styles.subGreeting, { color: colors.mutedText }]}>{t('homeScreen.trackSkinHealth')}</Text>
           </View>
-          <TouchableOpacity style={styles.bellButton}>
-            <Bell size={24} color="#374151" />
-            <View style={styles.redDot} />
-          </TouchableOpacity>
+        
         </View>
 
         <View style={styles.statsRow}>
-          <StatCard value={reports.length.toString()} label={t('homeScreen.uploads')} />
-          <StatCard value={analyzedCount.toString()} label={t('homeScreen.analyzed')} />
-          <StatCard value={daysJoined.toString()} label={t('homeScreen.daysActive')} />
+          <StatCard value={reports.length.toString()} label={t('homeScreen.uploads')} colors={colors} />
+          <StatCard value={analyzedCount.toString()} label={t('homeScreen.analyzed')} colors={colors} />
+          <StatCard value={daysJoined.toString()} label={t('homeScreen.daysActive')} colors={colors} />
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t('homeScreen.quickActions')}</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('homeScreen.quickActions')}</Text>
           <View style={styles.actionRow}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.bigActionBtn, { backgroundColor: '#2563EB' }]}
               onPress={() => router.push('/upload')}
             >
@@ -315,43 +359,46 @@ export default function HomeScreen() {
               <Text style={styles.bigActionText}>{t('homeScreen.uploadPhoto')}</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={[styles.bigActionBtn, { backgroundColor: 'white', borderWidth: 1, borderColor: '#E5E7EB' }]}
+            <TouchableOpacity
+              style={[styles.bigActionBtn, { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }]}
               onPress={() => router.push('/reports')}
             >
-              <FileText color="#374151" size={28} />
-              <Text style={[styles.bigActionText, { color: '#374151' }]}>{t('homeScreen.viewReports')}</Text>
+              <FileText color={colors.text} size={28} />
+              <Text style={[styles.bigActionText, { color: colors.text }]}>{t('homeScreen.viewReports')}</Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        <View style={styles.section}>
+        <View
+          style={styles.section}
+          onLayout={(event) => setNotificationsSectionY(event.nativeEvent.layout.y)}
+        >
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>{t('homeScreen.updates')}</Text>
-            {notifications.length > 0 && (
-               <Badge text={`${notifications.length} ${t('homeScreen.new')}`} color="#DBEAFE" textColor="#1E40AF" />
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('homeScreen.notifications')}</Text>
+            {unreadNotificationsCount > 0 && (
+               <Badge text={`${unreadNotificationsCount} ${t('homeScreen.new')}`} color="#DBEAFE" textColor="#1E40AF" />
             )}
           </View>
-          
-          <Card>
+
+          <Card style={{ backgroundColor: colors.surface }}>
             {notifications.length === 0 ? (
               <View style={styles.emptyUpdates}>
-                <CheckCircle size={24} color="#9CA3AF" style={{ marginBottom: 3 }} />
-                <Text style={styles.emptyText}>{t('homeScreen.youAreCaughtUp')}</Text>
+                <CheckCircle size={24} color={colors.faintText} style={{ marginBottom: 3 }} />
+                <Text style={[styles.emptyText, { color: colors.faintText }]}>{t('homeScreen.youAreCaughtUp')}</Text>
               </View>
             ) : (
-              notifications.map((n, i) => (
-                <TouchableOpacity 
-                  key={n.id} 
-                  style={[styles.notifItem, i !== 0 && styles.borderTop]}
+              notifications.slice(0, 3).map((n, i) => (
+                <TouchableOpacity
+                  key={n.id}
+                  style={[styles.notifItem, i !== 0 && styles.borderTop, { borderTopColor: colors.border }]}
                   onPress={() => handleReadNotification(n.id, n.submissionId)}
                   activeOpacity={0.7}
                 >
                   {!n.isRead && <View style={styles.unreadDot} />}
-                  
+
                   <View style={{ marginLeft: n.isRead ? 20 : 0 }}>
-                    <Text style={styles.notifText}>{n.text}</Text>
-                    <Text style={styles.notifTime}>{n.time}</Text>
+                    <Text style={[styles.notifText, { color: colors.text }]}>{n.text}</Text>
+                    <Text style={[styles.notifTime, { color: colors.faintText }]}>{n.time}</Text>
                   </View>
                 </TouchableOpacity>
               ))
@@ -361,54 +408,54 @@ export default function HomeScreen() {
 
         <View style={styles.section}>
            <View style={styles.sectionHeader}>
-             <Text style={styles.sectionTitle}>{t('homeScreen.recentHistory')}</Text>
+             <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('homeScreen.recentHistory')}</Text>
              <TouchableOpacity onPress={fetchReports}>
                 <Text style={styles.linkText}>{t('homeScreen.refresh')}</Text>
              </TouchableOpacity>
            </View>
-           
+
            {loading ? (
              <ActivityIndicator size="large" color="#2563EB" />
            ) : (
              reports.length === 0 ? (
                <View style={{ padding: 20, alignItems: 'center' }}>
-                 <Text style={{color: '#6B7280', textAlign: 'center'}}>
+                 <Text style={{color: colors.mutedText, textAlign: 'center'}}>
                     {t('homeScreen.noReportsFound')}{'\n'}
                     {t('homeScreen.getStarted')}
                  </Text>
                </View>
              ) : (
-               reports.slice(0, 5).map(report => (
-                 <Card key={report.id} style={{ marginBottom: 10, padding: 12 }}>
+               reports.slice(0, 3).map(report => (
+                 <Card key={report.id} style={{ marginBottom: 10, padding: 12, backgroundColor: colors.surface }}>
                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                     <View style={styles.imagePlaceholder}>
-                        {report.image && authToken ? ( 
-                          <Image 
-                            source={{ 
-                              uri: `${getImageUrl(report.image)}?token=${authToken}` 
-                            }} 
+                     <View style={[styles.imagePlaceholder, { backgroundColor: colors.surfaceAlt }]}>
+                        {report.image && authToken ? (
+                          <Image
+                            source={{
+                              uri: `${getImageUrl(report.image)}?token=${authToken}`
+                            }}
                             style={{ width: 48, height: 48, borderRadius: 8 }}
                             resizeMode="cover"
                           />
                         ) : (
-                          <FileText size={20} color="#9CA3AF"/>
+                          <FileText size={20} color={colors.faintText}/>
                         )}
                      </View>
 
                      <View style={{ flex: 1, marginLeft: 12 }}>
-                       <Text style={styles.itemTitle}>
-                          {report.body_part} <Text style={{ fontSize: 12, color: '#9CA3AF', fontWeight: 'normal' }}>#{report.id}</Text>
+                       <Text style={[styles.itemTitle, { color: colors.text }]}>
+                          {report.body_part} <Text style={{ fontSize: 12, color: colors.faintText, fontWeight: 'normal' }}>#{report.id}</Text>
                        </Text>
-                       
+
                        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
-                         <Calendar size={12} color="#6B7280" />
-                         <Text style={styles.itemDate}>{report.formatted_date}</Text>
+                         <Calendar size={12} color={colors.mutedText} />
+                         <Text style={[styles.itemDate, { color: colors.mutedText }]}>{report.formatted_date}</Text>
                        </View>
                      </View>
                    </View>
 
                    <View style={{ marginTop: 10 }}>
-                     <ProgressTracker status={report.status} t={t} />
+                     <ProgressTracker status={report.status} t={t} colors={colors} />
                    </View>
 
                  </Card>

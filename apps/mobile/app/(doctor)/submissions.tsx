@@ -23,7 +23,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 
-const API_URL = 'http://10.239.178.43:8000/api';
+const API_URL = 'http://10.136.227.43:8000/api';
 
 type StatusFilter = 'all' | 'pending' | 'reviewed';
 type DateFilter = 'all' | 'today' | 'week' | 'month' | 'year';

@@ -3,16 +3,16 @@ import * as SecureStore from "expo-secure-store";
 import { Calendar, ChevronLeft } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-const API_URL = "http://10.239.178.43:8000/api";
+const API_URL = "http://10.136.227.43:8000/api";
 
 type Medication = {
   name: string;

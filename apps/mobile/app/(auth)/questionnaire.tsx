@@ -4,11 +4,13 @@ import { ArrowLeft, ArrowRight, Calendar, Check, FileText, Info, Pill, Ruler, We
 import React, { useState } from 'react';
 import { Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useLanguage } from '../../lib/LanguageContext';
 
-const API_URL = 'http://10.239.178.43:8000/api'; 
+const API_URL = 'http://10.136.227.43:8000/api'; 
 
 export default function QuestionnaireScreen() {
   const router = useRouter();
+  const { t } = useLanguage();
   const [step, setStep] = useState(1);
   const totalSteps = 5;
   
@@ -30,17 +32,17 @@ export default function QuestionnaireScreen() {
   
   const [showSkinHelp, setShowSkinHelp] = useState(false);
 
-  const genderOptions = ['Female', 'Male'];
+  const genderOptions = [t('questionnaireScreen.female'), t('questionnaireScreen.male')];
   const skinTypeOptions = [
-    { label: 'Normal', desc: 'Balanced, clear, not sensitive' },
-    { label: 'Dry', desc: 'Rough, flaky, tight feeling' },
-    { label: 'Oily', desc: 'Shiny, enlarged pores' },
-    { label: 'Combination', desc: 'Oily T-zone, dry cheeks' },
-    { label: 'Sensitive', desc: 'Redness, itching, reactive' },
+    { label: t('questionnaireScreen.normal'), desc: t('questionnaireScreen.normalDesc') },
+    { label: t('questionnaireScreen.dry'), desc: t('questionnaireScreen.dryDesc') },
+    { label: t('questionnaireScreen.oily'), desc: t('questionnaireScreen.oilyDesc') },
+    { label: t('questionnaireScreen.combination'), desc: t('questionnaireScreen.combinationDesc') },
+    { label: t('questionnaireScreen.sensitive'), desc: t('questionnaireScreen.sensitiveDesc') },
   ];
-  const allergyOptions = ['Penicillin', 'Latex', 'Nickel (Metals)', 'Fragrances', 'Sunscreen', 'Aspirin', 'Peanuts'];
-  const conditionOptions = ['Diabetes', 'PCOS', 'Lupus', 'Herpes', 'Insulin Resistance', 'Thyroid Diseases', 'Celiac', 'IBD', 'Chronic Kidney Disease', 'Anemia', 'Sjögren Syndrome' , ' Liver Disease'];
-  const medicationOptions = ['Accutane (Isotretinoin)', 'Antibiotics', 'Birth Control', 'Retinoids', 'Corticosteroids', 'Vitamins'];
+  const allergyOptions = [t('questionnaireScreen.penicillin'), t('questionnaireScreen.latex'), t('questionnaireScreen.nickel'), t('questionnaireScreen.fragrances'), t('questionnaireScreen.sunscreen'), t('questionnaireScreen.aspirin'), t('questionnaireScreen.peanuts')];
+  const conditionOptions = [t('questionnaireScreen.diabetes'), t('questionnaireScreen.pcos'), t('questionnaireScreen.lupus'), t('questionnaireScreen.herpes'), t('questionnaireScreen.insulinResistance'), t('questionnaireScreen.thyroidDiseases'), t('questionnaireScreen.celiac'), t('questionnaireScreen.ibd'), t('questionnaireScreen.ckd'), t('questionnaireScreen.anemia'), t('questionnaireScreen.sjogren'), t('questionnaireScreen.liverDisease')];
+  const medicationOptions = [t('questionnaireScreen.accutane'), t('questionnaireScreen.antibiotics'), t('questionnaireScreen.birthControl'), t('questionnaireScreen.retinoids'), t('questionnaireScreen.corticosteroids'), t('questionnaireScreen.vitamins')];
 
   const nextStep = () => {
     if (step < totalSteps) setStep(step + 1);
@@ -60,20 +62,25 @@ export default function QuestionnaireScreen() {
         return;
       }
 
-     const skinTypeMap: { [key: string]: string } = {
-  'Normal': 'normal',
-  'Dry': 'dry',
-  'Oily': 'oily',
-  'Combination': 'combination',
-  'Sensitive': 'sensitive',
-};
+      const skinTypeMap: { [key: string]: string } = {
+        [t('questionnaireScreen.normal')]: 'normal',
+        [t('questionnaireScreen.dry')]: 'dry',
+        [t('questionnaireScreen.oily')]: 'oily',
+        [t('questionnaireScreen.combination')]: 'combination',
+        [t('questionnaireScreen.sensitive')]: 'sensitive',
+      };
+
+      const genderMap: { [key: string]: string } = {
+        [t('questionnaireScreen.female')]: 'female',
+        [t('questionnaireScreen.male')]: 'male',
+      };
 
       const formattedAllergies = hasAllergies ? formatList(selectedAllergies, allergyDetails) : 'None';
       const formattedConditions = formatList(selectedConditions, medicalConditionsOther);
       const formattedMedications = formatList(selectedMedications, medicationsOther);
 
       const payload = {
-        gender: gender.toLowerCase(), 
+        gender: genderMap[gender] || gender.toLowerCase(), 
         age: parseInt(age) || null,
         height: parseFloat(height) || null,
         weight: parseFloat(weight) || null,
@@ -105,7 +112,7 @@ export default function QuestionnaireScreen() {
       console.error(error);
       Alert.alert("Network Error", "Is the server running?");
     }
-  };-
+  };
 
   const selectAndNext = (setter: any, value: any) => {
     setter(value);
@@ -140,7 +147,7 @@ export default function QuestionnaireScreen() {
         <TouchableOpacity onPress={prevStep} style={styles.backButton}>
           <ArrowLeft size={24} color="#1F2937" />
         </TouchableOpacity>
-        <Text style={styles.stepIndicator}>Step {step} of {totalSteps}</Text>
+        <Text style={styles.stepIndicator}>{t('questionnaireScreen.stepOf')} {step} {t('questionnaireScreen.of')} {totalSteps}</Text>
         <View style={{ width: 24 }} />
       </View>
 
@@ -148,13 +155,14 @@ export default function QuestionnaireScreen() {
 
       <View style={styles.content}>
         
+        {/* Step 1: Personal Profile */}
         {step === 1 && (
           <View style={styles.stepContainer}>
-            <Text style={styles.question}>Personal Profile</Text>
-            <Text style={styles.subQuestion}>Tell us a bit about yourself.</Text>
+            <Text style={styles.question}>{t('questionnaireScreen.personalProfile')}</Text>
+            <Text style={styles.subQuestion}>{t('questionnaireScreen.aboutYourself')}</Text>
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
-              <Text style={styles.sectionLabel}>Gender</Text>
+              <Text style={styles.sectionLabel}>{t('questionnaireScreen.gender')}</Text>
               <View style={styles.rowGrid}>
                 {genderOptions.map((g) => (
                   <TouchableOpacity 
@@ -168,12 +176,12 @@ export default function QuestionnaireScreen() {
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.sectionLabel}>Age</Text>
+                <Text style={styles.sectionLabel}>{t('questionnaireScreen.age')}</Text>
                 <View style={styles.inputWrapper}>
                   <Calendar size={20} color="#9CA3AF" style={styles.inputIcon} />
                   <TextInput 
                     style={styles.input} 
-                    placeholder="e.g. 26" 
+                    placeholder={t('questionnaireScreen.ageExample')} 
                     keyboardType="numeric"
                     value={age}
                     onChangeText={setAge}
@@ -184,12 +192,12 @@ export default function QuestionnaireScreen() {
 
               <View style={{ flexDirection: 'row', gap: 12 }}>
                 <View style={[styles.inputGroup, { flex: 1 }]}>
-                  <Text style={styles.sectionLabel}>Height (cm)</Text>
+                  <Text style={styles.sectionLabel}>{t('questionnaireScreen.heightCm')}</Text>
                   <View style={styles.inputWrapper}>
                     <Ruler size={20} color="#9CA3AF" style={styles.inputIcon} />
                     <TextInput 
                       style={styles.input} 
-                      placeholder="175" 
+                      placeholder={t('questionnaireScreen.heightExample')} 
                       keyboardType="numeric"
                       value={height}
                       onChangeText={setHeight}
@@ -199,12 +207,12 @@ export default function QuestionnaireScreen() {
                 </View>
 
                 <View style={[styles.inputGroup, { flex: 1 }]}>
-                  <Text style={styles.sectionLabel}>Weight (kg)</Text>
+                  <Text style={styles.sectionLabel}>{t('questionnaireScreen.weightKg')}</Text>
                   <View style={styles.inputWrapper}>
                     <WeightIcon size={20} color="#9CA3AF" style={styles.inputIcon} />
                     <TextInput 
                       style={styles.input} 
-                      placeholder="70" 
+                      placeholder={t('questionnaireScreen.weightExample')} 
                       keyboardType="numeric"
                       value={weight}
                       onChangeText={setWeight}
@@ -220,22 +228,23 @@ export default function QuestionnaireScreen() {
               onPress={nextStep}
               disabled={!gender || !age || !height || !weight}
             >
-              <Text style={styles.nextButtonText}>Next Step</Text>
+              <Text style={styles.nextButtonText}>{t('questionnaireScreen.nextStep')}</Text>
               <ArrowRight size={20} color="white" />
             </TouchableOpacity>
           </View>
         )}
 
+        {/* Step 2: Skin Type */}
         {step === 2 && (
           <View style={styles.stepContainer}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Text style={styles.question}>Skin Type</Text>
+              <Text style={styles.question}>{t('questionnaireScreen.skinType')}</Text>
               <TouchableOpacity onPress={() => setShowSkinHelp(true)} style={styles.helpBtn}>
                 <Info size={16} color="#2563EB" />
-                <Text style={styles.helpBtnText}>How to check?</Text>
+                <Text style={styles.helpBtnText}>{t('questionnaireScreen.howToCheck')}</Text>
               </TouchableOpacity>
             </View>
-            <Text style={styles.subQuestion}>Select the one that describes you best.</Text>
+            <Text style={styles.subQuestion}>{t('questionnaireScreen.selectSkinType')}</Text>
 
             <ScrollView showsVerticalScrollIndicator={false}>
               {skinTypeOptions.map((type) => (
@@ -257,10 +266,11 @@ export default function QuestionnaireScreen() {
           </View>
         )}
 
+        {/* Step 3: Allergies */}
         {step === 3 && (
           <View style={styles.stepContainer}>
-            <Text style={styles.question}>Do you have allergies?</Text>
-            <Text style={styles.subQuestion}>Medicines, latex, or skin-contact allergens.</Text>
+            <Text style={styles.question}>{t('questionnaireScreen.allergies')}</Text>
+            <Text style={styles.subQuestion}>{t('questionnaireScreen.allergySubtitle')}</Text>
 
             <View style={{ flex: 1 }}>
               <View style={styles.rowGrid}>
@@ -268,19 +278,19 @@ export default function QuestionnaireScreen() {
                   style={[styles.smallBtn, hasAllergies === false && styles.smallBtnActive]}
                   onPress={() => { setHasAllergies(false); setSelectedAllergies([]); }}
                 >
-                  <Text style={[styles.smallBtnText, hasAllergies === false && styles.smallBtnTextActive]}>No Allergies</Text>
+                  <Text style={[styles.smallBtnText, hasAllergies === false && styles.smallBtnTextActive]}>{t('questionnaireScreen.noAllergies')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity 
                   style={[styles.smallBtn, hasAllergies === true && styles.smallBtnActive]}
                   onPress={() => setHasAllergies(true)}
                 >
-                  <Text style={[styles.smallBtnText, hasAllergies === true && styles.smallBtnTextActive]}>Yes, I do</Text>
+                  <Text style={[styles.smallBtnText, hasAllergies === true && styles.smallBtnTextActive]}>{t('questionnaireScreen.yesAllergies')}</Text>
                 </TouchableOpacity>
               </View>
 
               {hasAllergies === true && (
                 <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
-                  <Text style={styles.sectionLabel}>Common Allergens</Text>
+                  <Text style={styles.sectionLabel}>{t('questionnaireScreen.commonAllergens')}</Text>
                   <View style={styles.tagContainer}>
                     {allergyOptions.map((allergy) => {
                       const isSelected = selectedAllergies.includes(allergy);
@@ -297,10 +307,10 @@ export default function QuestionnaireScreen() {
                     })}
                   </View>
 
-                  <Text style={[styles.sectionLabel, { marginTop: 16 }]}>Other</Text>
+                  <Text style={[styles.sectionLabel, { marginTop: 16 }]}>{t('questionnaireScreen.other')}</Text>
                   <TextInput 
                     style={styles.textArea}
-                    placeholder="Type other allergies..."
+                    placeholder={t('questionnaireScreen.typeOtherAllergies')}
                     value={allergyDetails}
                     onChangeText={setAllergyDetails}
                   />
@@ -313,21 +323,22 @@ export default function QuestionnaireScreen() {
               onPress={nextStep}
               disabled={hasAllergies === null}
             >
-              <Text style={styles.nextButtonText}>Next Step</Text>
+              <Text style={styles.nextButtonText}>{t('questionnaireScreen.nextStep')}</Text>
               <ArrowRight size={20} color="white" />
             </TouchableOpacity>
           </View>
         )}
 
+        {/* Step 4: Medical History */}
         {step === 4 && (
           <View style={styles.stepContainer}>
-            <Text style={styles.question}>Medical History</Text>
-            <Text style={styles.subQuestion}>Conditions and meds that affect your skin.</Text>
+            <Text style={styles.question}>{t('questionnaireScreen.medicalHistory')}</Text>
+            <Text style={styles.subQuestion}>{t('questionnaireScreen.medicalHistorySubtitle')}</Text>
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
               <View style={styles.labelRow}>
                 <FileText size={16} color="#4B5563" />
-                <Text style={styles.sectionLabel}>Skin & Health Conditions</Text>
+                <Text style={styles.sectionLabel}>{t('questionnaireScreen.skinConditions')}</Text>
               </View>
               <View style={styles.tagContainer}>
                 {conditionOptions.map((cond) => {
@@ -345,13 +356,13 @@ export default function QuestionnaireScreen() {
               </View>
               <TextInput 
                 style={[styles.input, { marginTop: 8 }]}
-                placeholder="Other conditions..."
+                placeholder={t('questionnaireScreen.otherConditions')}
                 value={medicalConditionsOther}
                 onChangeText={setMedicalConditionsOther}
               />
               <View style={[styles.labelRow, { marginTop: 24 }]}>
                 <Pill size={16} color="#4B5563" />
-                <Text style={styles.sectionLabel}>Current Medications</Text>
+                <Text style={styles.sectionLabel}>{t('questionnaireScreen.currentMedications')}</Text>
               </View>
               <View style={styles.tagContainer}>
                 {medicationOptions.map((med) => {
@@ -369,52 +380,53 @@ export default function QuestionnaireScreen() {
               </View>
               <TextInput 
                 style={[styles.input, { marginTop: 8 }]}
-                placeholder="Other medications..."
+                placeholder={t('questionnaireScreen.otherMedications')}
                 value={medicationsOther}
                 onChangeText={setMedicationsOther}
               />
             </ScrollView>
 
             <TouchableOpacity style={styles.nextButton} onPress={nextStep}>
-              <Text style={styles.nextButtonText}>Review Profile</Text>
+              <Text style={styles.nextButtonText}>{t('questionnaireScreen.reviewProfile')}</Text>
               <ArrowRight size={20} color="white" />
             </TouchableOpacity>
           </View>
         )}
 
+        {/* Step 5: Summary & Submit */}
         {step === 5 && (
           <View style={styles.stepContainer}>
-            <Text style={styles.question}>All Set!</Text>
-            <Text style={styles.subQuestion}>We've customized your profile.</Text>
+            <Text style={styles.question}>{t('questionnaireScreen.allSet')}</Text>
+            <Text style={styles.subQuestion}>{t('questionnaireScreen.customizedProfile')}</Text>
 
             <ScrollView showsVerticalScrollIndicator={false}>
               <View style={styles.summaryCard}>
                 <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Identity</Text>
-                  <Text style={styles.summaryValue}>{gender}, {age} years</Text>
+                  <Text style={styles.summaryLabel}>{t('questionnaireScreen.identity')}</Text>
+                  <Text style={styles.summaryValue}>{gender}, {age} {t('questionnaireScreen.years')}</Text>
                 </View>
                 <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Body</Text>
-                  <Text style={styles.summaryValue}>{height}cm, {weight}kg</Text>
+                  <Text style={styles.summaryLabel}>{t('questionnaireScreen.body')}</Text>
+                  <Text style={styles.summaryValue}>{height}{t('questionnaireScreen.cm')}, {weight}{t('questionnaireScreen.kg')}</Text>
                 </View>
                 <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Skin</Text>
+                  <Text style={styles.summaryLabel}>{t('questionnaireScreen.skin')}</Text>
                   <Text style={styles.summaryValue}>{skinType}</Text>
                 </View>
                 <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Allergies</Text>
+                  <Text style={styles.summaryLabel}>{t('questionnaireScreen.allergies')}</Text>
                   <Text style={styles.summaryValue} numberOfLines={2}>
-                    {hasAllergies ? formatList(selectedAllergies, allergyDetails) : 'None'}
+                    {hasAllergies ? formatList(selectedAllergies, allergyDetails) : t('questionnaireScreen.noAllergies')}
                   </Text>
                 </View>
                 <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Conditions</Text>
+                  <Text style={styles.summaryLabel}>{t('questionnaireScreen.conditions')}</Text>
                   <Text style={styles.summaryValue} numberOfLines={2}>
                     {formatList(selectedConditions, medicalConditionsOther)}
                   </Text>
                 </View>
                 <View style={[styles.summaryRow, { borderBottomWidth: 0 }]}>
-                  <Text style={styles.summaryLabel}>Meds</Text>
+                  <Text style={styles.summaryLabel}>{t('questionnaireScreen.meds')}</Text>
                   <Text style={styles.summaryValue} numberOfLines={2}>
                     {formatList(selectedMedications, medicationsOther)}
                   </Text>
@@ -423,7 +435,7 @@ export default function QuestionnaireScreen() {
             </ScrollView>
 
             <TouchableOpacity style={styles.nextButton} onPress={handleComplete}>
-              <Text style={styles.nextButtonText}>Go to Dashboard</Text>
+              <Text style={styles.nextButtonText}>{t('questionnaireScreen.goToDashboard')}</Text>
               <ArrowRight size={20} color="white" />
             </TouchableOpacity>
           </View>
@@ -435,22 +447,22 @@ export default function QuestionnaireScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Identifying Skin Type</Text>
+              <Text style={styles.modalTitle}>{t('questionnaireScreen.identifyingSkinType')}</Text>
               <TouchableOpacity onPress={() => setShowSkinHelp(false)}>
                 <X size={24} color="#374151" />
               </TouchableOpacity>
             </View>
             <ScrollView style={styles.modalScroll}>
-              <Text style={styles.modalText}><Text style={{fontWeight: 'bold'}}>1. Wash your face</Text> with a gentle cleanser and wait 30 minutes.</Text>
-              <Text style={styles.modalSubTitle}>Check your T-zone (forehead, nose, chin):</Text>
-              <View style={styles.modalItem}><Text style={styles.modalLabel}>Normal:</Text><Text style={styles.modalDesc}>Comfortable, no excess oil or flaking.</Text></View>
-              <View style={styles.modalItem}><Text style={styles.modalLabel}>Oily:</Text><Text style={styles.modalDesc}>Shiny/greasy all over.</Text></View>
-              <View style={styles.modalItem}><Text style={styles.modalLabel}>Dry:</Text><Text style={styles.modalDesc}>Tight, flaky, or rough.</Text></View>
-              <View style={styles.modalItem}><Text style={styles.modalLabel}>Combination:</Text><Text style={styles.modalDesc}>Oily T-zone but dry/normal cheeks.</Text></View>
-              <View style={styles.modalItem}><Text style={styles.modalLabel}>Sensitive:</Text><Text style={styles.modalDesc}>Red, itchy, or stinging.</Text></View>
+              <Text style={styles.modalText}><Text style={{fontWeight: 'bold'}}>{t('questionnaireScreen.washYourFace')}</Text> {t('questionnaireScreen.withGentle')}</Text>
+              <Text style={styles.modalSubTitle}>{t('questionnaireScreen.checkTZone')}</Text>
+              <View style={styles.modalItem}><Text style={styles.modalLabel}>{t('questionnaireScreen.normal')}:</Text><Text style={styles.modalDesc}>{t('questionnaireScreen.comfortable')}</Text></View>
+              <View style={styles.modalItem}><Text style={styles.modalLabel}>{t('questionnaireScreen.oily')}:</Text><Text style={styles.modalDesc}>{t('questionnaireScreen.shinyGreasy')}</Text></View>
+              <View style={styles.modalItem}><Text style={styles.modalLabel}>{t('questionnaireScreen.dry')}:</Text><Text style={styles.modalDesc}>{t('questionnaireScreen.tightFlaky')}</Text></View>
+              <View style={styles.modalItem}><Text style={styles.modalLabel}>{t('questionnaireScreen.combination')}:</Text><Text style={styles.modalDesc}>{t('questionnaireScreen.oilyTZone')}</Text></View>
+              <View style={styles.modalItem}><Text style={styles.modalLabel}>{t('questionnaireScreen.sensitive')}:</Text><Text style={styles.modalDesc}>{t('questionnaireScreen.redItchy')}</Text></View>
             </ScrollView>
             <TouchableOpacity style={styles.modalBtn} onPress={() => setShowSkinHelp(false)}>
-              <Text style={styles.modalBtnText}>Got it</Text>
+              <Text style={styles.modalBtnText}>{t('questionnaireScreen.gotIt')}</Text>
             </TouchableOpacity>
           </View>
         </View>

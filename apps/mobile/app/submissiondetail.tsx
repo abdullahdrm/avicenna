@@ -7,7 +7,7 @@ import {
   ChevronLeft,
   ChevronUp,
 } from "lucide-react-native";
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -19,28 +19,63 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  diseaseMetricLabels,
+  getDiseaseTypeFromPrediction,
+  ProgressComparison,
+} from "../components/ProgressComparison";
+import {
+  compareMetrics,
+  DEFAULT_LESION_METRICS,
+  LesionMetrics,
+  normalizeLesionMetrics,
+} from "../lib/metricsComparison";
 
-const API_URL = "http://10.66.131.43:8000/api";
+const API_URL = "http://10.136.227.43:8000/api";
 
 const Card = ({ children, style }: any) => (
   <View style={[styles.card, style]}>{children}</View>
 );
 
+const getTimelineItemId = (item: any) =>
+  item?.submission_id ?? item?.id ?? `${item?.image || "timeline"}-${item?.date || ""}`;
+
+const getTimelineItemMetrics = (item: any): LesionMetrics =>
+  normalizeLesionMetrics(
+    item?.metrics ||
+      item?.skin_analysis?.metrics ||
+      item?.analysis_metrics,
+  ) || DEFAULT_LESION_METRICS;
+
+const getAiAnalysisText = (item: any) =>
+  item?.ai_analysis ||
+  item?.gemini_analysis ||
+  item?.analysis ||
+  item?.skin_analysis?.ai_analysis ||
+  item?.skin_analysis?.gemini_analysis ||
+  item?.skin_analysis?.analysis;
+
+const getPrediction = (item: any) =>
+  item?.prediction || item?.skin_analysis?.prediction;
+
 export default function SubmissionDetail() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
+  const submissionId = Array.isArray(id) ? id[0] : id;
 
   const [expanded, setExpanded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submission, setSubmission] = useState<any>(null);
-  const [activeSubmissionId, setActiveSubmissionId] = useState(id);
+  const [activeSubmissionId, setActiveSubmissionId] = useState<string | number | undefined>(
+    submissionId,
+  );
   const [authToken, setAuthToken] = useState<string | null>(null);
 
-  const fetchSubmission = async () => {
+  const fetchSubmission = useCallback(async () => {
     try {
       const token = await SecureStore.getItemAsync('access_token');
       setAuthToken(token);
-      const url = `${API_URL}/doctor/submissions/${id}/`;
+      const url = `${API_URL}/doctor/submissions/${submissionId}/`;
 
       const response = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` },
@@ -56,13 +91,27 @@ export default function SubmissionDetail() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [submissionId]);
 
   useFocusEffect(
     useCallback(() => {
       fetchSubmission();
-    }, [id])
+    }, [fetchSubmission])
   );
+
+  const timeline = useMemo(() => {
+    return [...(submission?.timeline || [])].sort((a: any, b: any) => {
+      return new Date(a.date).getTime() - new Date(b.date).getTime();
+    });
+  }, [submission]);
+
+  useEffect(() => {
+    const selectedTimelineItem = timeline.find(
+      (item: any) => String(getTimelineItemId(item)) === String(submissionId),
+    );
+    const oldestTimelineId = timeline.length > 0 ? getTimelineItemId(timeline[0]) : undefined;
+    setActiveSubmissionId(getTimelineItemId(selectedTimelineItem) ?? oldestTimelineId ?? submissionId);
+  }, [submissionId, timeline]);
 
   const toggleExpand = () => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -72,27 +121,29 @@ export default function SubmissionDetail() {
   const displayData = useMemo(() => {
     if (!submission) return null;
 
-    const dummyMetrics = {
-      lesion_count: 12,
-      extra: {
-        lesion_area_ratio: 0.0045,
-        estimated_gags_score: 8,
-        inflammation_intensity_score: 0.182
-      }
-    };
-
-    const selectedItem = submission.timeline?.find(
-      (item: any) => String(item.submission_id) === String(activeSubmissionId),
+    const selectedItem = timeline.find(
+      (item: any) => String(getTimelineItemId(item)) === String(activeSubmissionId),
     );
+
+    const metrics: LesionMetrics = getTimelineItemMetrics(selectedItem);
+
     if (selectedItem) {
       return {
         ...selectedItem,
-        metrics: dummyMetrics
+        metrics,
+        ai_analysis: getAiAnalysisText(selectedItem),
+        prediction: getPrediction(selectedItem),
       };
     }
+
+
+    const mainMetrics =
+      normalizeLesionMetrics(submission.skin_analysis?.metrics) || DEFAULT_LESION_METRICS;
+
     return selectedItem || {
       image: submission.skin_analysis?.image,
       prediction: submission.skin_analysis?.prediction,
+      ai_analysis: getAiAnalysisText(submission),
       confidence: submission.skin_analysis?.confidence,
       body_part: submission.skin_analysis?.body_part,
       status: submission.status,
@@ -100,9 +151,24 @@ export default function SubmissionDetail() {
       comments: submission.skin_analysis?.comments,
       pain_level: submission.skin_analysis?.pain_level,
       duration: submission.skin_analysis?.duration,
-      metrics: dummyMetrics
+      metrics: mainMetrics,
     };
-  }, [submission, activeSubmissionId]);
+  }, [submission, timeline, activeSubmissionId]);
+
+  const progressComparison = useMemo(() => {
+    if (!displayData?.metrics || !activeSubmissionId || timeline.length < 2) return null;
+
+    const currentMetrics = normalizeLesionMetrics(displayData.metrics);
+    if (!currentMetrics) return null;
+
+    const activeIndex = timeline.findIndex(
+      (item: any) => String(getTimelineItemId(item)) === String(activeSubmissionId),
+    );
+    if (activeIndex <= 0) return compareMetrics(currentMetrics, null);
+
+    const previousMetrics = getTimelineItemMetrics(timeline[activeIndex - 1]);
+    return compareMetrics(currentMetrics, previousMetrics);
+  }, [timeline, displayData?.metrics, activeSubmissionId]);
   if (loading || !displayData) {
     return (
       <SafeAreaView style={styles.center}>
@@ -115,14 +181,16 @@ export default function SubmissionDetail() {
   const painLevel = displayData?.pain_level;
   const duration = displayData?.duration;
   const prediction = displayData?.prediction;
+  const aiAnalysis = displayData?.ai_analysis;
   const confidence = displayData?.confidence;
   const comments = displayData?.comments;
   const answers = displayData?.answers || {};
   const isReviewed = displayData?.has_report || displayData?.status?.toLowerCase() === "reviewed";
+  const diseaseType = getDiseaseTypeFromPrediction(prediction);
+  const metricLabels = diseaseMetricLabels[diseaseType];
 
   const patient = submission?.patient;
   const profile = patient?.profile;
-  const timeline = submission?.timeline || [];
   const getSecureImageUrl = (uri: string | null | undefined) => {
     if (!uri || !authToken) return uri;
     return `${uri}?token=${authToken}`;
@@ -200,14 +268,14 @@ export default function SubmissionDetail() {
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.timelineContainer}>
               {timeline.map((item: any) => (
                 <TouchableOpacity
-                  key={item.id}
-                  onPress={() => setActiveSubmissionId(item.submission_id)}
+                  key={getTimelineItemId(item)}
+                  onPress={() => setActiveSubmissionId(getTimelineItemId(item))}
                   style={[
                     styles.timelineItem,
-                    String(activeSubmissionId) === String(item.submission_id) && styles.activeTimelineItem
+                    String(activeSubmissionId) === String(getTimelineItemId(item)) && styles.activeTimelineItem
                   ]}
                 >
-                  <Image source={{ uri: getSecureImageUrl(item.image) }} style={styles.timelineImage} />
+                  <Image source={{ uri: getSecureImageUrl(item.image) || undefined }} style={styles.timelineImage} />
                   <Text style={styles.timelineDate}>{item.date}</Text>
                   {item.has_report && (
                     <View style={styles.checkIcon}>
@@ -223,7 +291,7 @@ export default function SubmissionDetail() {
         <Card style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Reviewing Selected Update</Text>
           {imageUri ? (
-            <Image source={{ uri: getSecureImageUrl(imageUri) }} style={styles.submittedImage} />
+            <Image source={{ uri: getSecureImageUrl(imageUri) || undefined }} style={styles.submittedImage} />
           ) : (
             <View style={[styles.submittedImage, styles.center]}>
               <Text style={{ color: "#9CA3AF" }}>No image provided</Text>
@@ -247,31 +315,50 @@ export default function SubmissionDetail() {
               ) : null}
             </View>
           </View>
+
+          {aiAnalysis ? (
+            <>
+              <View style={styles.separator} />
+              <View style={styles.aiAnalysisBox}>
+                <Text style={styles.aiAnalysisTitle}>AI Analysis</Text>
+                <Text style={styles.aiAnalysisText}>{aiAnalysis}</Text>
+              </View>
+            </>
+          ) : null}
+
+          {progressComparison && (
+            <ProgressComparison
+              comparison={progressComparison}
+              diseaseType={diseaseType}
+              showDetails
+            />
+          )}
+
           <View style={styles.MetricsContainer}>
             <Text style={styles.MetricsTitle}>Automated Measurements</Text>
             
             <View style={styles.MRow}>
-              <Text style={styles.MLabel}>Lesion Count</Text>
+              <Text style={styles.MLabel}>{metricLabels.lesion}</Text>
               <Text style={styles.MValue}>{displayData.metrics?.lesion_count || 0}</Text>
             </View>
 
             <View style={styles.MRow}>
               <Text style={styles.MLabel}>Area Coverage</Text>
               <Text style={styles.MValue}>
-                {((displayData.metrics?.extra?.lesion_area_ratio || 0) * 100).toFixed(2)}%
+                {((displayData.metrics?.lesion_area_ratio || 0) * 100).toFixed(2)}%
               </Text>
             </View>
 
             <View style={styles.MRow}>
-              <Text style={styles.MLabel}>Inflammation Score</Text>
+              <Text style={styles.MLabel}>{metricLabels.inflammation}</Text>
               <Text style={styles.MValue}>
-                {(displayData.metrics.extra.inflammation_intensity_score * 100).toFixed(1)}%
+                {((displayData.metrics?.inflammation_intensity_score || 0) * 100).toFixed(1)}%
               </Text>
             </View>
 
             <View style={[styles.MRow, { borderBottomWidth: 0 }]}>
-              <Text style={styles.MLabel}>Est. GAGS Grade</Text>
-              <Text style={styles.MValue}>{displayData.metrics.extra.estimated_gags_score}</Text>
+              <Text style={styles.MLabel}>{metricLabels.severity}</Text>
+              <Text style={styles.MValue}>{displayData.metrics?.estimated_gags_score || 0}</Text>
             </View>
           </View>
           <View style={styles.separator} />
@@ -381,6 +468,9 @@ const styles = StyleSheet.create({
   activeTimelineItem: { borderColor: '#2563EB', borderWidth: 2, padding: 2, borderRadius: 14 },
   timelineDate: { fontSize: 10, color: '#6B7280', marginTop: 4, fontWeight: 'bold' },
   checkIcon: { position: 'absolute', top: -5, right: -5 },
+  aiAnalysisBox: { backgroundColor: '#EFF6FF', borderRadius: 10, padding: 12, marginVertical: 10, borderWidth: 1, borderColor: '#BFDBFE' },
+  aiAnalysisTitle: { fontSize: 12, fontWeight: '800', color: '#1D4ED8', textTransform: 'uppercase', marginBottom: 6, letterSpacing: 0.5 },
+  aiAnalysisText: { fontSize: 14, lineHeight: 20, color: '#1F2937' },
   MetricsContainer: { backgroundColor: '#F8FAFC', borderRadius: 10, padding: 12,  marginVertical: 10, borderWidth: 1, borderColor: '#E2E8F0', },
   MetricsTitle: { fontSize: 12, fontWeight: '800', color: '#475569', textTransform: 'uppercase', marginBottom: 8, letterSpacing: 0.5,},
   MRow: {flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: '#F1F5F9', },

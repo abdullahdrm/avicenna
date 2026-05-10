@@ -4,10 +4,10 @@ import { ArrowRight, Lock, Mail, User } from 'lucide-react-native';
 import React, { useState } from 'react';
 import { Alert, Image, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useAuth } from '../_layout';
 import { useLanguage } from '../../lib/LanguageContext';
+import { useAuth } from '../_layout';
 
-const API_URL = 'http://10.239.178.43:8000/api'; 
+const API_URL = 'http://10.136.227.43:8000/api'; 
 
 export default function LoginScreen() {
   const router = useRouter();

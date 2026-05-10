@@ -8,6 +8,9 @@ import { ActivityIndicator, Alert, Image, Modal, ScrollView, StyleSheet, Text, T
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLanguage } from '../../lib/LanguageContext';
 
+const BASE_URL = 'http://10.136.227.43:8000';
+const API_URL = `${BASE_URL}/api`;
+
 export default function UploadScreen() {
   const { t } = useLanguage();
   const router = useRouter();
@@ -18,28 +21,29 @@ export default function UploadScreen() {
   const [uploadMode, setUploadMode] = useState<'camera' | 'upload'>('camera');
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [facing, setFacing] = useState<CameraType>('back'); 
+  const [facing, setFacing] = useState<CameraType>('back');
   const [selectedRecord, setSelectedRecord] = useState<number | null>(null);
-  
+  const [selectedRecordTitle, setSelectedRecordTitle] = useState('');
+
   const [selectedArea, setSelectedArea] = useState('');
+  const [conditionTitle, setConditionTitle] = useState('');
   const [painLevel, setPainLevel] = useState(0);
   const [duration, setDuration] = useState('');
   const [comments, setComments] = useState('');
-  
+  const [isOnPeriod, setIsOnPeriod] = useState(false);
+  const [patientGender, setPatientGender] = useState<string | null>(null);
+
 
   const [recordId, setRecordId] = useState<number | null>(null);
   const [predictionResult, setPredictionResult] = useState<string>('');
   const [serverQuestions, setServerQuestions] = useState<any[]>([]);
   const [userAnswers, setUserAnswers] = useState<{[key: string]: string}>({});
 
-  const BASE_URL = 'http://10.239.178.43:8000'; 
-  const API_URL = `${BASE_URL}/api`;
-
-
   const [medicalCases, setMedicalCases] = useState<any[]>([]);
-  const recentActiveCases = Array.isArray(medicalCases) 
-    ? medicalCases.filter(c => c.is_active === true).slice(0, 3) 
+  const recentActiveCases = Array.isArray(medicalCases)
+    ? medicalCases.filter(c => c.is_active === true).slice(0, 3)
     : [];
+  const isFemalePatient = patientGender?.toLowerCase() === 'female';
 
   useFocusEffect(
     useCallback(() => {
@@ -47,12 +51,18 @@ export default function UploadScreen() {
         try {
           const token = await SecureStore.getItemAsync('access_token');
           if (!token) return;
-          const response = await fetch(`${API_URL}/cases/`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-          });
-          if (response.ok) {
-            const json = await response.json();
-            
+          const headers = { 'Authorization': `Bearer ${token}` };
+          const [casesResponse, profileResponse] = await Promise.all([
+            fetch(`${API_URL}/cases/`, { headers }),
+            fetch(`${API_URL}/profile/`, { headers }),
+          ]);
+          if (profileResponse.ok) {
+            const profileJson = await profileResponse.json();
+            setPatientGender(profileJson.gender || null);
+          }
+          if (casesResponse.ok) {
+            const json = await casesResponse.json();
+
             if (Array.isArray(json)) {
               setMedicalCases(json);
             } else if (json.results) {
@@ -60,7 +70,7 @@ export default function UploadScreen() {
             } else {
               setMedicalCases([]);
             }
-            
+
           }
         } catch (error) {
           console.error("Failed to fetch cases:", error);
@@ -82,7 +92,7 @@ export default function UploadScreen() {
   }
 
   useEffect(() => {
-    let interval: NodeJS.Timeout;
+    let interval: ReturnType<typeof setInterval>;
 
     if (step === 'analyzing' && recordId) {
       interval = setInterval(async () => {
@@ -122,37 +132,57 @@ export default function UploadScreen() {
     if (uploadMode === 'camera' && cameraRef.current) {
       try {
         const photo = await cameraRef.current.takePictureAsync({
-          quality: 0.5,      
+          quality: 0.5,
           base64: false,
-          skipProcessing: true, 
+          skipProcessing: true,
         });
-        if (photo) { 
-          setCapturedImage(photo.uri); 
-          setStep('triage'); 
+        if (photo) {
+          setCapturedImage(photo.uri);
+          setStep('triage');
         }
       } catch (error) { console.log("Error taking photo:", error); }
     } else {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: false,
-        aspect: [3, 4], 
-        quality: 0.8,   
+        aspect: [3, 4],
+        quality: 0.8,
       });
-      if (!result.canceled) { 
-        setCapturedImage(result.assets[0].uri); 
-        setStep('triage'); 
+      if (!result.canceled) {
+        setCapturedImage(result.assets[0].uri);
+        setStep('triage');
       }
     }
   };
 
-  const selectExisting = (id: number, label: string) => {
-    setSelectedRecord(id);
-    setSelectedArea(label);
-    setStep('area'); 
+  const getCaseBodyPart = (record: any) => {
+    return (
+      record.body_part ||
+      record.area ||
+      record.title?.replace(/\s+(Issue|Case)$/i, '') ||
+      ''
+    );
   };
-  
-  const selectNewArea = (area: string) => { 
-    setSelectedArea(area); 
+
+  const selectExisting = (record: any) => {
+    setSelectedRecord(record.id);
+    setSelectedRecordTitle(record.title || '');
+    setSelectedArea(getCaseBodyPart(record));
+    setConditionTitle('');
+    setStep('area');
+  };
+
+  const startNewCondition = () => {
+    setSelectedRecord(null);
+    setSelectedRecordTitle('');
+    setSelectedArea('');
+    setConditionTitle('');
+    setStep('area');
+  };
+
+  const selectNewArea = (area: string) => {
+    setSelectedArea(area);
+    setConditionTitle((currentTitle) => currentTitle || `${area} condition`);
   };
 
   const handleAnalyze = () => {
@@ -160,10 +190,22 @@ export default function UploadScreen() {
       Alert.alert("Missing Info", "Please select a body area.");
       return;
     }
+    if (!selectedRecord && !conditionTitle.trim()) {
+      Alert.alert("Missing Info", "Please name this condition.");
+      return;
+    }
     setStep('scanning');
     setTimeout(() => {
       uploadImageAndStartWaiting(selectedArea);
     }, 1000);
+  };
+
+  const getPatientComment = () => {
+    const trimmedComments = comments.trim();
+    if (!isFemalePatient || !isOnPeriod) return trimmedComments;
+
+    const periodNote = t('uploadScreen.periodCommentNote');
+    return trimmedComments ? `${trimmedComments}\n\n${periodNote}` : periodNote;
   };
 
   const uploadImageAndStartWaiting = async (areaName: string) => {
@@ -173,7 +215,7 @@ export default function UploadScreen() {
       const token = await SecureStore.getItemAsync('access_token');
       if (!token) {
         Alert.alert("Auth Error", "You are not logged in");
-        router.replace('/'); 
+        router.replace('/');
         return;
       }
 
@@ -182,32 +224,32 @@ export default function UploadScreen() {
       const match = /\.(\w+)$/.exec(filename || '');
       const type = match ? `image/${match[1]}` : `image/jpeg`;
 
-      formData.append('image', { uri: capturedImage, name: filename, type });
-      formData.append('body_part', areaName); 
+      formData.append('image', { uri: capturedImage, name: filename, type } as any);
+      formData.append('body_part', areaName);
       formData.append('status', 'review');
-      
+
       formData.append('pain_level', painLevel.toString());
       formData.append('duration', duration);
-      formData.append('comments', comments);
+      formData.append('comments', getPatientComment());
       if (selectedRecord) {
         formData.append('medical_case_id', selectedRecord.toString());
       } else {
-        formData.append('title', `${areaName} Issue`);
+        formData.append('title', conditionTitle.trim());
       }
-      const response = await fetch(`${API_URL}/skin-analysis/`, { 
+      const response = await fetch(`${API_URL}/skin-analysis/`, {
         method: 'POST',
         body: formData,
-        headers: { 
+        headers: {
           'Accept': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
       });
 
       const json = await response.json();
-      
+
       if (response.ok) {
         setRecordId(json.id);
-        setStep('analyzing'); 
+        setStep('analyzing');
       } else {
         const errorMessage = json.reason || "Upload failed";
         Alert.alert("Upload Failed", errorMessage);
@@ -227,12 +269,12 @@ export default function UploadScreen() {
     try {
       const token = await SecureStore.getItemAsync('access_token');
       const url = `${API_URL}/skin-analysis/${recordId}/answer_questions/`;
-      
+
       const response = await fetch(url, {
         method: 'POST',
-        headers: { 
+        headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}` 
+            'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({ answers: userAnswers }),
       });
@@ -244,7 +286,7 @@ export default function UploadScreen() {
       } else {
           Alert.alert("Error", "Failed to submit answers.");
       }
-    } catch (e) {
+    } catch {
       Alert.alert("Error", "Could not submit answers");
     } finally {
       setIsSubmitting(false);
@@ -253,8 +295,8 @@ export default function UploadScreen() {
 
   const resetForm = () => {
     setSelectedRecord(null);
-    setCapturedImage(null); 
-    setStep('camera'); 
+    setCapturedImage(null);
+    setStep('camera');
     setUploadMode('camera');
     setFacing('back');
     setServerQuestions([]);
@@ -264,7 +306,10 @@ export default function UploadScreen() {
     setPainLevel(0);
     setDuration('');
     setComments('');
+    setIsOnPeriod(false);
     setSelectedArea('');
+    setSelectedRecordTitle('');
+    setConditionTitle('');
   };
 
   if (!permission) return <View style={styles.loadingContainer}><ActivityIndicator /></View>;
@@ -310,15 +355,15 @@ export default function UploadScreen() {
             )}
           </View>
           <View style={styles.toggleRow}>
-             <TouchableOpacity 
-               style={[styles.toggleBtn, uploadMode === 'camera' && styles.toggleBtnActive]} 
+             <TouchableOpacity
+               style={[styles.toggleBtn, uploadMode === 'camera' && styles.toggleBtnActive]}
                onPress={() => { setUploadMode('camera'); setCapturedImage(null); }}
              >
                <Camera size={16} color={uploadMode === 'camera' ? '#2563EB' : '#6B7280'} />
                <Text style={[styles.toggleText, uploadMode === 'camera' && styles.textBlue]}>{t('uploadScreen.camera')}</Text>
              </TouchableOpacity>
-             <TouchableOpacity 
-               style={[styles.toggleBtn, uploadMode === 'upload' && styles.toggleBtnActive]} 
+             <TouchableOpacity
+               style={[styles.toggleBtn, uploadMode === 'upload' && styles.toggleBtnActive]}
                onPress={() => setUploadMode('upload')}
              >
                <UploadIcon size={16} color={uploadMode === 'upload' ? '#2563EB' : '#6B7280'} />
@@ -345,7 +390,7 @@ export default function UploadScreen() {
                 <X size={24} color="#374151"/>
               </TouchableOpacity>
             </View>
-            <TouchableOpacity style={styles.optionCard} onPress={() => setStep('area')}>
+            <TouchableOpacity style={styles.optionCard} onPress={startNewCondition}>
               <View style={[styles.iconCircle, { backgroundColor: '#DBEAFE' }]}>
                 <AlertCircle size={24} color="#2563EB" />
               </View>
@@ -359,10 +404,10 @@ export default function UploadScreen() {
               <>
                 <Text style={[styles.sectionLabel, {marginTop: 10, marginBottom: 10}]}>{t('uploadScreen.existingConditions')}</Text>
                 {recentActiveCases.map((record) => (
-                  <TouchableOpacity 
-                    key={record.id} 
-                    style={styles.optionCard} 
-                    onPress={() => selectExisting(record.id, record.title)}
+                  <TouchableOpacity
+                    key={record.id}
+                    style={styles.optionCard}
+                    onPress={() => selectExisting(record)}
                   >
                     <View style={[styles.iconCircle, { backgroundColor: '#F3F4F6' }]}>
                       <RefreshCw size={24} color="#6B7280" />
@@ -395,9 +440,9 @@ export default function UploadScreen() {
                    <Text style={styles.sectionLabel}>{t('uploadScreen.selectBodyArea')}</Text>
                    <View style={styles.grid}>
                      {bodyAreas.map((area) => (
-                       <TouchableOpacity 
-                         key={area} 
-                         style={[styles.areaChip, selectedArea === area && styles.areaChipActive]} 
+                       <TouchableOpacity
+                         key={area}
+                         style={[styles.areaChip, selectedArea === area && styles.areaChipActive]}
                          onPress={() => selectNewArea(area)}
                        >
                          <Text style={[styles.areaText, selectedArea === area && styles.areaTextActive]}>{area}</Text>
@@ -409,12 +454,28 @@ export default function UploadScreen() {
                {selectedArea ? (
                  <View style={styles.formSection}>
                    <View style={styles.divider} />
-                   
+                   {selectedRecord ? (
+                     <View style={styles.selectedCaseBox}>
+                       <Text style={styles.selectedCaseLabel}>Adding follow-up to</Text>
+                       <Text style={styles.selectedCaseTitle}>{selectedRecordTitle}</Text>
+                     </View>
+                   ) : (
+                     <>
+                       <Text style={styles.inputLabel}>Condition name</Text>
+                       <TextInput
+                         style={styles.textInput}
+                         placeholder="e.g. Forehead acne flare-up"
+                         value={conditionTitle}
+                         onChangeText={setConditionTitle}
+                       />
+                     </>
+                   )}
+
                    <Text style={styles.inputLabel}>{t('uploadScreen.painLevel')}</Text>
                    <View style={styles.painRow}>
                      {[0, 2, 4, 6, 8, 10].map((val) => (
-                       <TouchableOpacity 
-                         key={val} 
+                       <TouchableOpacity
+                         key={val}
                          style={[styles.painBtn, painLevel === val && styles.painBtnActive]}
                          onPress={() => setPainLevel(val)}
                        >
@@ -424,17 +485,31 @@ export default function UploadScreen() {
                    </View>
 
                    <Text style={styles.inputLabel}>{t('uploadScreen.duration')}</Text>
-                   <TextInput 
-                     style={styles.textInput} 
-                     placeholder={t('uploadScreen.durationExample')} 
+                   <TextInput
+                     style={styles.textInput}
+                     placeholder={t('uploadScreen.durationExample')}
                      value={duration}
                      onChangeText={setDuration}
                    />
 
+                   {isFemalePatient && (
+                     <>
+                       <Text style={styles.inputLabel}>{t('uploadScreen.periodStatus')}</Text>
+                       <TouchableOpacity
+                         style={[styles.periodBtn, isOnPeriod && styles.periodBtnActive]}
+                         onPress={() => setIsOnPeriod((current) => !current)}
+                       >
+                         <Text style={[styles.periodBtnText, isOnPeriod && styles.periodBtnTextActive]}>
+                           {t('uploadScreen.currentlyOnPeriod')}
+                         </Text>
+                       </TouchableOpacity>
+                     </>
+                   )}
+
                    <Text style={styles.inputLabel}>{t('uploadScreen.comments')}</Text>
-                   <TextInput 
-                     style={[styles.textInput, { height: 80, textAlignVertical: 'top' }]} 
-                     placeholder={t('uploadScreen.commentsExample')} 
+                   <TextInput
+                     style={[styles.textInput, { height: 80, textAlignVertical: 'top' }]}
+                     placeholder={t('uploadScreen.commentsExample')}
                      multiline
                      value={comments}
                      onChangeText={setComments}
@@ -466,7 +541,7 @@ export default function UploadScreen() {
 
       <Modal visible={step === 'dynamic_questions'} transparent animationType="slide">
         <View style={styles.modalOverlay}>
-          <View style={styles.formCard}>            
+          <View style={styles.formCard}>
             <View style={styles.successHeader}>
                <CheckCircle size={48} color="#16A34A" />
                <Text style={styles.successTitle}>{predictionResult || t('uploadScreen.analysisComplete')}</Text>
@@ -479,14 +554,14 @@ export default function UploadScreen() {
                   <Text style={styles.label}>{q.text}</Text>
                   {q.type === 'yes_no' ? (
                     <View style={{ flexDirection: 'row', gap: 10 }}>
-                        <TouchableOpacity 
+                        <TouchableOpacity
                           style={[styles.durationChip, userAnswers[q.id] === 'yes' && styles.durationActive]}
                           onPress={() => setUserAnswers({...userAnswers, [q.id]: 'yes'})}
                         >
                           <Text style={[styles.durationText, userAnswers[q.id] === 'yes' && styles.textWhite]}>{t('uploadScreen.yes')}</Text>
                         </TouchableOpacity>
 
-                        <TouchableOpacity 
+                        <TouchableOpacity
                           style={[styles.durationChip, userAnswers[q.id] === 'no' && styles.durationActive]}
                           onPress={() => setUserAnswers({...userAnswers, [q.id]: 'no'})}
                         >
@@ -494,9 +569,9 @@ export default function UploadScreen() {
                         </TouchableOpacity>
                     </View>
                   ) : (
-                    <TextInput 
-                        style={styles.textArea} 
-                        placeholder={t('uploadScreen.typeAnswerHere')} 
+                    <TextInput
+                        style={styles.textArea}
+                        placeholder={t('uploadScreen.typeAnswerHere')}
                         keyboardType={q.type === 'number' ? 'numeric' : 'default'}
                         onChangeText={(text) => setUserAnswers({...userAnswers, [q.id]: text})}
                       />
@@ -505,8 +580,8 @@ export default function UploadScreen() {
               ))}
             </ScrollView>
 
-            <TouchableOpacity 
-              style={[styles.submitBtn, isSubmitting && { opacity: 0.7 }]} 
+            <TouchableOpacity
+              style={[styles.submitBtn, isSubmitting && { opacity: 0.7 }]}
               onPress={submitAnswers}
               disabled={isSubmitting}
             >
@@ -525,7 +600,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#111827' },
   header: { padding: 20, paddingTop: 10 },
   headerTitle: { color: 'white', fontSize: 20, fontWeight: 'bold', textAlign: 'center' },
-  permissionContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },  
+  permissionContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
   permissionText: { marginBottom: 20 },
   cameraContainer: { margin: 20, marginTop: 10, borderRadius: 24, overflow: 'hidden', backgroundColor: 'black', aspectRatio: 3/4 },
   cameraWrapper: { flex: 1, position: 'relative' },
@@ -579,8 +654,15 @@ const styles = StyleSheet.create({
   areaTextActive: { color: 'white', fontWeight: 'bold' },
   formSection: { marginTop: 10 },
   divider: { height: 1, backgroundColor: '#E5E7EB', marginVertical: 20 },
+  selectedCaseBox: { backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#BFDBFE', borderRadius: 12, padding: 12, marginBottom: 8 },
+  selectedCaseLabel: { fontSize: 12, fontWeight: '600', color: '#2563EB', marginBottom: 4 },
+  selectedCaseTitle: { fontSize: 15, fontWeight: '700', color: '#111827' },
   inputLabel: { fontSize: 14, fontWeight: '600', color: '#374151', marginBottom: 8, marginTop: 12 },
   textInput: { borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 12, padding: 12, fontSize: 16, backgroundColor: '#F9FAFB' },
+  periodBtn: { borderWidth: 1, borderColor: '#F9A8D4', borderRadius: 12, padding: 12, backgroundColor: '#FDF2F8', alignItems: 'center' },
+  periodBtnActive: { backgroundColor: '#DB2777', borderColor: '#DB2777' },
+  periodBtnText: { color: '#BE185D', fontWeight: '700' },
+  periodBtnTextActive: { color: 'white' },
   painRow: { flexDirection: 'row', justifyContent: 'space-between' },
   painBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center' },
   painBtnActive: { backgroundColor: '#EF4444' },

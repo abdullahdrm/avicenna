@@ -5,88 +5,89 @@ import { ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 're
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLanguage } from '../lib/LanguageContext';
 import { LanguageSwitcher } from '../components/LanguageSwitcher';
+import { usePatientTheme } from '../lib/PatientThemeContext';
 
 export default function SettingsScreen() {
   const router = useRouter();
   const { t } = useLanguage();
+  const { darkMode, setDarkMode, colors } = usePatientTheme();
   const [notifications, setNotifications] = useState(true);
-  const [darkMode, setDarkMode] = useState(false);
 
   const SettingItem = ({ icon: Icon, label, type = 'link', value, onToggle }: any) => (
-    <TouchableOpacity 
-      style={styles.row} 
-      onPress={type === 'link' ? () => {} : undefined} 
+    <TouchableOpacity
+      style={[styles.row, { borderBottomColor: colors.border }]}
+      onPress={type === 'link' ? () => {} : undefined}
       activeOpacity={type === 'link' ? 0.7 : 1}
     >
       <View style={styles.rowLeft}>
-        <View style={styles.iconBox}>
-          <Icon size={20} color="#4B5563" />
+        <View style={[styles.iconBox, { backgroundColor: colors.surfaceAlt }]}>
+          <Icon size={20} color={colors.mutedText} />
         </View>
-        <Text style={styles.label}>{label}</Text>
+        <Text style={[styles.label, { color: colors.text }]}>{label}</Text>
       </View>
-      
+
       {type === 'toggle' ? (
-        <Switch 
-          value={value} 
+        <Switch
+          value={value}
           onValueChange={onToggle}
-          trackColor={{ false: '#E5E7EB', true: '#2563EB' }}
+          trackColor={{ false: colors.border, true: colors.primary }}
           thumbColor="white"
         />
       ) : (
-        <ChevronRight size={20} color="#9CA3AF" />
+        <ChevronRight size={20} color={colors.faintText} />
       )}
     </TouchableOpacity>
   );
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <ArrowLeft size={24} color="#111827" />
+          <ArrowLeft size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>{t('settingsScreen.settings')}</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>{t('settingsScreen.settings')}</Text>
         <View style={{ width: 40 }} />
       </View>
 
       <ScrollView style={styles.content}>
-        <Text style={styles.sectionHeader}>{t('settingsScreen.preferences')}</Text>
-        <View style={styles.section}>
-          <SettingItem 
-            icon={Bell} 
-            label={t('settingsScreen.pushNotifications')} 
-            type="toggle" 
-            value={notifications} 
-            onToggle={setNotifications} 
+        <Text style={[styles.sectionHeader, { color: colors.mutedText }]}>{t('settingsScreen.preferences')}</Text>
+        <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <SettingItem
+            icon={Bell}
+            label={t('settingsScreen.pushNotifications')}
+            type="toggle"
+            value={notifications}
+            onToggle={setNotifications}
           />
-          <SettingItem 
-            icon={Moon} 
-            label={t('settingsScreen.darkMode')} 
-            type="toggle" 
-            value={darkMode} 
-            onToggle={setDarkMode} 
+          <SettingItem
+            icon={Moon}
+            label={t('settingsScreen.darkMode')}
+            type="toggle"
+            value={darkMode}
+            onToggle={setDarkMode}
           />
         </View>
 
-        <Text style={styles.sectionHeader}>{t('settingsScreen.language')}</Text>
-        <View style={styles.section}>
+        <Text style={[styles.sectionHeader, { color: colors.mutedText }]}>{t('settingsScreen.language')}</Text>
+        <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={{ padding: 16 }}>
             <LanguageSwitcher />
           </View>
         </View>
 
-        <Text style={styles.sectionHeader}>{t('settingsScreen.support')}</Text>
-        <View style={styles.section}>
+        <Text style={[styles.sectionHeader, { color: colors.mutedText }]}>{t('settingsScreen.support')}</Text>
+        <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <SettingItem icon={HelpCircle} label={t('settingsScreen.helpCenter')} />
           <SettingItem icon={Lock} label={t('settingsScreen.privacyPolicy')} />
           <SettingItem icon={FileText} label={t('settingsScreen.termsOfService')} />
         </View>
 
-        <TouchableOpacity style={styles.logoutBtn} onPress={() => router.replace('/login')}>
-          <LogOut size={20} color="#DC2626" />
-          <Text style={styles.logoutText}>{t('settingsScreen.signOut')}</Text>
+        <TouchableOpacity style={[styles.logoutBtn, { backgroundColor: colors.dangerSoft, borderColor: colors.dangerBorder }]} onPress={() => router.replace('/login')}>
+          <LogOut size={20} color={colors.dangerText} />
+          <Text style={[styles.logoutText, { color: colors.dangerText }]}>{t('settingsScreen.signOut')}</Text>
         </TouchableOpacity>
 
-        <Text style={styles.version}>{t('settingsScreen.version')}</Text>
+        <Text style={[styles.version, { color: colors.faintText }]}>{t('settingsScreen.version')}</Text>
       </ScrollView>
     </SafeAreaView>
   );

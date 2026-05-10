@@ -4,23 +4,31 @@ import * as SecureStore from "expo-secure-store";
 import { Calendar, ChevronLeft, Plus, Trash2 } from "lucide-react-native";
 import React, { useState } from "react";
 import {
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-const API_URL = "http://10.239.178.43:8000/api";
+const API_URL = "http://10.136.227.43:8000/api";
 
 type Medication = {
   name: string;
   frequency: string;
+};
+
+const formatDateForApi = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
 };
 
 export default function WriteReport() {
@@ -78,9 +86,7 @@ export default function WriteReport() {
         diagnosis,
         hospital_visit: hospitalVisit === "yes",
         comment,
-        next_submission_date: nextDate
-          ? nextDate.toISOString().split("T")[0]
-          : null,
+        next_submission_date: nextDate ? formatDateForApi(nextDate) : null,
         medications: medications.filter(
           (m) => m.name.trim() || m.frequency.trim()
         ),
@@ -101,14 +107,14 @@ export default function WriteReport() {
         pathname: "/report/view/[id]",
         params: { id: String(id) },
       });
-    } catch (e) {
+    } catch {
       Alert.alert("Error", "Could not submit report.");
     } finally {
       setSubmitting(false);
     }
   };
   const today = new Date();
-today.setHours(0, 0, 0, 0);
+  today.setHours(0, 0, 0, 0);
 
 
   return (
@@ -202,36 +208,40 @@ today.setHours(0, 0, 0, 0);
           </View>
 
           <View style={styles.card}>
-  <Text style={styles.label}>Next Submission Date</Text>
+            <Text style={styles.label}>Next Submission Date</Text>
 
-  <TouchableOpacity
-    style={styles.dateBtn}
-    onPress={() => setShowDatePicker(true)}
-  >
-    <Calendar size={18} />
-    <Text style={styles.dateText}>
-      {nextDate ? nextDate.toLocaleDateString() : "Select date"}
-    </Text>
-  </TouchableOpacity>
-</View>
+            <TouchableOpacity
+              style={styles.dateBtn}
+              onPress={() => setShowDatePicker(true)}
+            >
+              <Calendar size={18} />
+              <Text style={styles.dateText}>
+                {nextDate ? nextDate.toLocaleDateString() : "Select date"}
+              </Text>
+            </TouchableOpacity>
+          </View>
 
+          {showDatePicker && (
+            <View
+              style={
+                Platform.OS === "ios" ? styles.datePickerWrapper : undefined
+              }
+            >
+              <DateTimePicker
+                value={nextDate || today}
+                mode="date"
+                display={Platform.OS === "ios" ? "inline" : "default"}
+                minimumDate={today}
+                onChange={(event, date) => {
+                  if (Platform.OS !== "ios" || event.type !== "set") {
+                    setShowDatePicker(false);
+                  }
 
-{showDatePicker && Platform.OS === "ios" && (
-  <View style={styles.datePickerWrapper}>
-    <DateTimePicker
-      value={nextDate || today}
-      mode="date"
-      display="inline"
-      minimumDate={today}
-      onChange={(_, date) => {
-        setShowDatePicker(false);
-        if (date) setNextDate(date);
-      }}
-    />
-  </View>
-)}
-
-
+                  if (date) setNextDate(date);
+                }}
+              />
+            </View>
+          )}
 
 
           <View style={styles.card}>

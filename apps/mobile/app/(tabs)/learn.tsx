@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLanguage } from '../../lib/LanguageContext';
+import { usePatientTheme } from '../../lib/PatientThemeContext';
 
 interface Article {
   id: number;
@@ -20,31 +21,36 @@ interface DailyTip {
 
 export default function LearnScreen() {
   const { t } = useLanguage();
+  const { colors } = usePatientTheme();
   const [activeCategory, setActiveCategory] = useState('All');
   const [articles, setArticles] = useState<Article[]>([]);
   const [dailyTip, setDailyTip] = useState<DailyTip | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const BASE_URL = 'http://10.239.178.43:8000';
+  const BASE_URL = 'http://10.136.227.43:8000';
   const categories = ['All', 'Acne', 'Anti-Aging', 'Routine', 'Dry Skin', 'Sun', 'Basics'];
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const tipRes = await fetch(`${BASE_URL}/api/tips/random/`);
-      if (tipRes.ok) {
-        const tipJson = await tipRes.json();
-        setDailyTip(tipJson);
-      }
       let articleUrl = `${BASE_URL}/api/articles/`;
       if (activeCategory !== 'All') {
         articleUrl += `?category=${activeCategory}`;
       }
-      
-      const articleRes = await fetch(articleUrl);
+
+      const [tipRes, articleRes] = await Promise.all([
+        fetch(`${BASE_URL}/api/tips/random/`),
+        fetch(articleUrl)
+      ]);
+
+      if (tipRes.ok) {
+        const tipJson = await tipRes.json();
+        setDailyTip(tipJson);
+      }
+
       if (articleRes.ok) {
         const articleJson = await articleRes.json();
-        
+
         if (Array.isArray(articleJson)) {
           setArticles(articleJson);
         } else if (articleJson.results) {
@@ -67,21 +73,21 @@ export default function LearnScreen() {
 
   const getImageUrl = (path: string | null) => {
     if (!path) return null;
-    if (path.startsWith('http')) return path; 
+    if (path.startsWith('http')) return path;
     return `${BASE_URL}${path}`;
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>{t('learnScreen.skinEducation')}</Text>
-        <TouchableOpacity style={styles.searchBtn} onPress={fetchData}>
-          <Search size={20} color="#374151" />
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>{t('learnScreen.skinEducation')}</Text>
+        <TouchableOpacity style={[styles.searchBtn, { backgroundColor: colors.surfaceAlt }]} onPress={fetchData}>
+          <Search size={20} color={colors.text} />
         </TouchableOpacity>
       </View>
 
       <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: 40 }}>
-        
+
         <View style={styles.dailyTipContainer}>
           <View style={styles.dailyHeader}>
             <Sparkles size={18} color="#B45309" />
@@ -92,7 +98,7 @@ export default function LearnScreen() {
           </Text>
         </View>
 
-        <Text style={styles.sectionTitle}>{t('learnScreen.dermatologyEssentials')}</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('learnScreen.dermatologyEssentials')}</Text>
         <View style={styles.grid}>
           <TouchableOpacity style={[styles.gridItem, { backgroundColor: '#EFF6FF' }]} onPress={() => setActiveCategory('Dry Skin')}>
             <Droplet size={24} color="#2563EB" />
@@ -109,12 +115,12 @@ export default function LearnScreen() {
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.catScroll}>
           {categories.map((cat) => (
-            <TouchableOpacity 
-              key={cat} 
-              style={[styles.catChip, activeCategory === cat && styles.catChipActive]}
+            <TouchableOpacity
+              key={cat}
+              style={[styles.catChip, { backgroundColor: colors.surface, borderColor: colors.border }, activeCategory === cat && styles.catChipActive]}
               onPress={() => setActiveCategory(cat)}
             >
-              <Text style={[styles.catText, activeCategory === cat && styles.catTextActive]}>{cat}</Text>
+              <Text style={[styles.catText, { color: colors.mutedText }, activeCategory === cat && styles.catTextActive]}>{cat}</Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
@@ -123,27 +129,27 @@ export default function LearnScreen() {
             <ActivityIndicator size="large" color="#2563EB" />
           ) : (
             articles.length === 0 ? (
-              <Text style={{ textAlign: 'center', color: '#6B7280', marginTop: 20 }}>
+              <Text style={{ textAlign: 'center', color: colors.mutedText, marginTop: 20 }}>
                 {t('learnScreen.noArticles')} {activeCategory}.
               </Text>
             ) : (
               articles.map((article) => (
-                <TouchableOpacity key={article.id} style={styles.card}>
+                <TouchableOpacity key={article.id} style={[styles.card, { backgroundColor: colors.surface }]}>
                   {article.image && (
-                    <Image 
-                      source={{ uri: getImageUrl(article.image) }} 
+                    <Image
+                      source={{ uri: getImageUrl(article.image) as string }}
                       style={styles.cardImage}
-                      resizeMode="cover" 
+                      resizeMode="cover"
                     />
                   )}
-                  
+
                   <View style={styles.cardContent}>
                     <View style={styles.cardMeta}>
                       <Text style={styles.cardCategory}>{article.category}</Text>
-                      <Text style={styles.cardTime}>{article.read_time}</Text>
+                      <Text style={[styles.cardTime, { color: colors.faintText }]}>{article.read_time}</Text>
                     </View>
-                    <Text style={styles.cardTitle}>{article.title}</Text>
-                    <Text style={{ color: '#6B7280', marginBottom: 12 }} numberOfLines={2}>
+                    <Text style={[styles.cardTitle, { color: colors.text }]}>{article.title}</Text>
+                    <Text style={{ color: colors.mutedText, marginBottom: 12 }} numberOfLines={2}>
                       {article.content}
                     </Text>
                     <View style={styles.readMore}>
@@ -177,7 +183,7 @@ const styles = StyleSheet.create({
   dailyText: { fontSize: 16, color: '#78350F', fontStyle: 'italic', lineHeight: 24 },
 
   sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#111827', marginLeft: 20, marginBottom: 12 },
-  
+
   grid: { flexDirection: 'row', paddingHorizontal: 20, gap: 12, marginBottom: 24 },
   gridItem: { flex: 1, padding: 16, borderRadius: 16, alignItems: 'center', justifyContent: 'center', height: 100 },
   gridLabel: { marginTop: 8, fontWeight: '600', fontSize: 12 },

@@ -24,32 +24,34 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLanguage } from '../../lib/LanguageContext';
+import { usePatientTheme } from '../../lib/PatientThemeContext';
 
-const API_URL = 'http://10.66.131.43:8000/api'; 
+const API_URL = 'http://10.136.227.43:8000/api';
 
-const Card = ({ children, style }: any) => (
-  <View style={[styles.card, style]}>{children}</View>
+const Card = ({ children, style, colors }: any) => (
+  <View style={[styles.card, colors && { backgroundColor: colors.surface }, style]}>{children}</View>
 );
 
-const InfoRow = ({ label, value, icon: Icon, isLast }: any) => (
-  <View style={[styles.infoRow, isLast && { borderBottomWidth: 0 }]}>
+const InfoRow = ({ label, value, icon: Icon, isLast, colors }: any) => (
+  <View style={[styles.infoRow, { borderBottomColor: colors.border }, isLast && { borderBottomWidth: 0 }]}>
     <View style={styles.labelContainer}>
-      {Icon && <Icon size={16} color="#6B7280" style={{ marginRight: 8 }} />}
-      <Text style={styles.infoLabel}>{label}</Text>
+      {Icon && <Icon size={16} color={colors.mutedText} style={{ marginRight: 8 }} />}
+      <Text style={[styles.infoLabel, { color: colors.mutedText }]}>{label}</Text>
     </View>
-    <Text style={styles.infoValue}>{value || '-'}</Text>
+    <Text style={[styles.infoValue, { color: colors.text }]}>{value || '-'}</Text>
   </View>
 );
 
 export default function ProfileScreen() {
   const router = useRouter();
   const { t } = useLanguage();
+  const { colors } = usePatientTheme();
   const [loading, setLoading] = useState(true);
-  
+
   const [stats, setStats] = useState({
     uploads: 0,
     reports: 0,
-    days: 0, 
+    days: 0,
   });
 
   const [userProfile, setUserProfile] = useState({
@@ -95,12 +97,22 @@ export default function ProfileScreen() {
 
       const headers = { 'Authorization': `Bearer ${token}` };
 
-      const profileRes = await fetch(`${API_URL}/profile/`, { headers });
-      if (profileRes.ok) {
-        const data = await profileRes.json();
+      const [profileRes, uploadsRes, reportsRes] = await Promise.all([
+        fetch(`${API_URL}/profile/`, { headers }),
+        fetch(`${API_URL}/skin-analysis/`, { headers }),
+        fetch(`${API_URL}/patient/reports/`, { headers })
+      ]);
+
+      const [profileData, uploadsData, reportsData] = await Promise.all([
+        profileRes.ok ? profileRes.json() : null,
+        uploadsRes.ok ? uploadsRes.json() : null,
+        reportsRes.ok ? reportsRes.json() : null
+      ]);
+
+      if (profileData) {
         let daysActive = 0;
-        if (data.date_joined) {
-          const joined = new Date(data.date_joined);
+        if (profileData.date_joined) {
+          const joined = new Date(profileData.date_joined);
           const now = new Date();
 
           const joinedDateOnly = new Date(joined.getFullYear(), joined.getMonth(), joined.getDate());
@@ -114,30 +126,26 @@ export default function ProfileScreen() {
         setUserProfile(prev => ({
           ...prev,
           ...baseInfo,
-          age: data.age,
-          height: data.height,
-          weight: data.weight,
-          skinType: data.skin_type,
-          allergies: data.allergies, 
-          gender: data.gender,
-          conditions: data.medical_conditions,
-          medications: data.medications,
+          age: profileData.age,
+          height: profileData.height,
+          weight: profileData.weight,
+          skinType: profileData.skin_type,
+          allergies: profileData.allergies,
+          gender: profileData.gender,
+          conditions: profileData.medical_conditions,
+          medications: profileData.medications,
         }));
-        
+
         setStats(prev => ({ ...prev, days: daysActive }));
       }
 
-      const uploadsRes = await fetch(`${API_URL}/skin-analysis/`, { headers });
-      if (uploadsRes.ok) {
-        const json = await uploadsRes.json();
-        const count = Array.isArray(json) ? json.length : (json.results ? json.results.length : 0);
+      if (uploadsData) {
+        const count = Array.isArray(uploadsData) ? uploadsData.length : (uploadsData.results ? uploadsData.results.length : 0);
         setStats(prev => ({ ...prev, uploads: count }));
       }
 
-      const reportsRes = await fetch(`${API_URL}/patient/reports/`, { headers });
-      if (reportsRes.ok) {
-        const json = await reportsRes.json();
-        const count = Array.isArray(json) ? json.length : (json.results ? json.results.length : 0);
+      if (reportsData) {
+        const count = Array.isArray(reportsData) ? reportsData.length : (reportsData.results ? reportsData.results.length : 0);
         setStats(prev => ({ ...prev, reports: count }));
       }
 
@@ -153,7 +161,7 @@ export default function ProfileScreen() {
       await SecureStore.deleteItemAsync('access_token');
       await SecureStore.deleteItemAsync('refresh_token');
       await SecureStore.deleteItemAsync('user');
-      router.replace('/login'); 
+      router.replace('/login');
     } catch (error) {
       console.error(error);
       Alert.alert("Error", "Could not log out");
@@ -181,38 +189,38 @@ export default function ProfileScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.container, {justifyContent:'center', alignItems:'center'}]}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background, justifyContent:'center', alignItems:'center'}]}>
         <ActivityIndicator size="large" color="#2563EB" />
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: 40 }}>
-        
+
         <View style={styles.headerProfile}>
            <View style={styles.topBar}>
              <Text style={styles.headerTitle}>{t('profileScreen.myProfile')}</Text>
-             <TouchableOpacity 
-                style={styles.settingsBtn} 
+             <TouchableOpacity
+                style={styles.settingsBtn}
                 onPress={() => router.push('/settings')}
                 >
                <Settings size={24} color="white" />
              </TouchableOpacity>
            </View>
-           
+
            <View style={styles.profileRow}>
               <View style={styles.avatarContainer}>
-                 <Image 
-                   source={{ uri: userProfile.avatar }} 
+                 <Image
+                   source={{ uri: userProfile.avatar }}
                    style={styles.avatar}
                  />
               </View>
               <View style={{ flex: 1 }}>
                  <Text style={styles.name}>{userProfile.name}</Text>
                  <Text style={styles.email}>{userProfile.email}</Text>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                      style={styles.editBtn}
                      onPress={() => router.push('/edit-profile')}
                      >
@@ -241,37 +249,38 @@ export default function ProfileScreen() {
         </View>
 
         <View style={styles.body}>
-           
-           <Text style={styles.sectionTitle}>{t('profileScreen.personalDetails')}</Text>
-           <Card style={styles.infoCard}>
-              <InfoRow label={t('profileScreen.gender')} value={getGenderDisplay(userProfile.gender)} />
-              <InfoRow label={t('profileScreen.age')} value={userProfile.age ? `${userProfile.age} ${t('profileScreen.years')}` : '-'} isLast />
+
+           <Text style={[styles.sectionTitle, { color: colors.mutedText }]}>{t('profileScreen.personalDetails')}</Text>
+           <Card style={styles.infoCard} colors={colors}>
+              <InfoRow label={t('profileScreen.gender')} value={getGenderDisplay(userProfile.gender)} colors={colors} />
+              <InfoRow label={t('profileScreen.age')} value={userProfile.age ? `${userProfile.age} ${t('profileScreen.years')}` : '-'} isLast colors={colors} />
            </Card>
 
-           <Text style={styles.sectionTitle}>{t('profileScreen.bodyMeasurements')}</Text>
-           <Card style={styles.infoCard}>
-              <InfoRow icon={Ruler} label={t('profileScreen.height')} value={userProfile.height ? `${userProfile.height} ${t('profileScreen.cm')}` : '-'} />
-              <InfoRow icon={Weight} label={t('profileScreen.weight')} value={userProfile.weight ? `${userProfile.weight} ${t('profileScreen.kg')}` : '-'} isLast />
+           <Text style={[styles.sectionTitle, { color: colors.mutedText }]}>{t('profileScreen.bodyMeasurements')}</Text>
+           <Card style={styles.infoCard} colors={colors}>
+              <InfoRow icon={Ruler} label={t('profileScreen.height')} value={userProfile.height ? `${userProfile.height} ${t('profileScreen.cm')}` : '-'} colors={colors} />
+              <InfoRow icon={Weight} label={t('profileScreen.weight')} value={userProfile.weight ? `${userProfile.weight} ${t('profileScreen.kg')}` : '-'} isLast colors={colors} />
            </Card>
 
-           <Text style={styles.sectionTitle}>{t('profileScreen.medicalProfile')}</Text>
-           <Card style={styles.infoCard}>
-              <InfoRow icon={Activity} label={t('profileScreen.skinType')} value={getSkinTypeDisplay(userProfile.skinType)} />
-              <InfoRow 
-                icon={AlertCircle} 
-                label={t('profileScreen.allergies')} 
-                value={userProfile.allergies} 
+           <Text style={[styles.sectionTitle, { color: colors.mutedText }]}>{t('profileScreen.medicalProfile')}</Text>
+           <Card style={styles.infoCard} colors={colors}>
+              <InfoRow icon={Activity} label={t('profileScreen.skinType')} value={getSkinTypeDisplay(userProfile.skinType)} colors={colors} />
+              <InfoRow
+                icon={AlertCircle}
+                label={t('profileScreen.allergies')}
+                value={userProfile.allergies}
+                colors={colors}
               />
-              <InfoRow icon={FileText} label={t('profileScreen.conditions')} value={userProfile.conditions} />
-              <InfoRow icon={Pill} label={t('profileScreen.medications')} value={userProfile.medications} isLast />
+              <InfoRow icon={FileText} label={t('profileScreen.conditions')} value={userProfile.conditions} colors={colors} />
+              <InfoRow icon={Pill} label={t('profileScreen.medications')} value={userProfile.medications} isLast colors={colors} />
            </Card>
 
-           <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-              <LogOut size={18} color="#DC2626" />
-              <Text style={styles.logoutText}>{t('profileScreen.signOut')}</Text>
+           <TouchableOpacity style={[styles.logoutBtn, { backgroundColor: colors.dangerSoft, borderColor: colors.dangerBorder }]} onPress={handleLogout}>
+              <LogOut size={18} color={colors.dangerText} />
+              <Text style={[styles.logoutText, { color: colors.dangerText }]}>{t('profileScreen.signOut')}</Text>
            </TouchableOpacity>
-           
-           <Text style={styles.version}>{t('profileScreen.version')}</Text>
+
+           <Text style={[styles.version, { color: colors.faintText }]}>{t('profileScreen.version')}</Text>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -286,13 +295,13 @@ const styles = StyleSheet.create({
   topBar: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginBottom: 24, position: 'relative' },
   headerTitle: { fontSize: 20, fontWeight: 'bold', color: 'white' },
   settingsBtn: { position: 'absolute', right: 0, padding: 4 },
-  
+
   profileRow: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 24 },
   avatarContainer: { width: 80, height: 80, borderRadius: 40, borderWidth: 3, borderColor: 'rgba(255,255,255,0.3)', overflow: 'hidden', backgroundColor: '#E5E7EB' },
   avatar: { width: '100%', height: '100%' },
   name: { fontSize: 24, fontWeight: 'bold', color: 'white' },
   email: { color: '#DBEAFE', fontSize: 14, marginBottom: 8 },
-  
+
   editBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, alignSelf: 'flex-start', gap: 6 },
   editBtnText: { color: 'white', fontSize: 12, fontWeight: '600' },
 
@@ -304,7 +313,7 @@ const styles = StyleSheet.create({
 
   body: { padding: 20 },
   sectionTitle: { fontSize: 16, fontWeight: 'bold', color: '#374151', marginBottom: 12, marginTop: 4, textTransform: 'uppercase' },
-  
+
   card: { backgroundColor: 'white', borderRadius: 16, shadowColor: '#000', shadowOffset: {width:0, height:2}, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2, overflow: 'hidden', marginBottom: 24 },
   infoCard: { paddingHorizontal: 20, paddingVertical: 8 },
   infoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },

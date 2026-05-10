@@ -10,7 +10,6 @@ i18n.translations = {
   tr,
 };
 
-// Set the locale based on device language
 const deviceLocale = Localization.getLocales()[0]?.languageCode || 'en';
 i18n.locale = ['tr', 'en'].includes(deviceLocale) ? deviceLocale : 'en';
 i18n.enableFallback = true;
