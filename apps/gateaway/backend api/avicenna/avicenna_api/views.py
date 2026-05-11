@@ -320,8 +320,6 @@ class SkinAnalysisViewSet(viewsets.ModelViewSet):
             medical_case=medical_case
         )
 
-        full_image_url = request.build_absolute_uri(instance.image.url)
-
         image_file.seek(0)
         files = {'file': (image_file.name, image_file.read(), image_file.content_type)}
         
@@ -353,7 +351,7 @@ class SkinAnalysisViewSet(viewsets.ModelViewSet):
         try:
             ps_response = requests.post(
                 f"{PROCESSING_SERVER_URL}/analyze-upload",
-                files={"file": (image_file.name, image_file.read(), image_file.content_type)},
+                files=files,
                 data={"case_id": str(instance.id), "patient_info": patient_info},
                 timeout=15,
             )
