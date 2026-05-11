@@ -776,3 +776,20 @@ class AnalyzeSkinView(APIView):
 
         except requests.exceptions.RequestException as e:
             return Response({"error": f"Server Error: {str(e)}"}, status=503)
+
+
+class ChatView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user_message = request.data.get("message", "")
+        if not user_message:
+            return Response({"error": "No message provided"}, status=400)
+        try:
+            graph = build_graph_for_user(request.user)
+            result = graph.invoke({"messages": [HumanMessage(content=user_message)]})
+            messages = result.get("messages", [])
+            reply = messages[-1].content if messages else "No response."
+            return Response({"reply": reply})
+        except Exception as e:
+            return Response({"error": str(e)}, status=500)
