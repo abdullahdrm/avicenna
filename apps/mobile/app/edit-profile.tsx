@@ -26,7 +26,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { usePatientTheme } from '../lib/PatientThemeContext';
 
-const API_URL = 'http://10.136.227.43:8000/api';
+const API_URL = 'http://172.20.10.2:8000/api';
 
 export default function EditProfileScreen() {
   const router = useRouter();

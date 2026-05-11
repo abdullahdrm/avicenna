@@ -16,7 +16,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-const API_URL = 'http://10.136.227.43:8000/api';
+const API_URL = 'http://172.20.10.2:8000/api';
 
 
 const Card = ({ children, style }: any) => (

@@ -39,7 +39,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-const BASE_URL = 'http://10.136.227.43:8000';
+const BASE_URL = 'http://172.20.10.2:8000';
 const API_URL = `${BASE_URL}/api/patient/reports/`;
 
 interface MedicalReport {

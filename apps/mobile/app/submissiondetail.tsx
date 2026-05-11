@@ -31,7 +31,7 @@ import {
   normalizeLesionMetrics,
 } from "../lib/metricsComparison";
 
-const API_URL = "http://10.136.227.43:8000/api";
+const API_URL = "http://172.20.10.2:8000/api";
 
 const Card = ({ children, style }: any) => (
   <View style={[styles.card, style]}>{children}</View>

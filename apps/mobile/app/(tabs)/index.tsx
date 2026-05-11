@@ -117,8 +117,9 @@ export default function HomeScreen() {
   const [notificationsSectionY, setNotificationsSectionY] = useState(0);
   const [userId, setUserId] = useState<string | null>(null);
   const [authToken, setAuthToken] = useState<string | null>(null);
+  const [upcomingSubmissions, setUpcomingSubmissions] = useState<any[]>([]);
 
-  const BASE_URL = 'http://10.136.227.43:8000';
+  const BASE_URL = 'http://172.20.10.2:8000';
   const API_URL = `${BASE_URL}/api/skin-analysis/`;
   const PROFILE_URL = `${BASE_URL}/api/profile/`;
 
@@ -142,6 +143,18 @@ export default function HomeScreen() {
             const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
             setDaysJoined(diffDays);
           }
+      }
+
+      const upcomingResponse = await fetch(
+        `${BASE_URL}/api/patient/upcoming-submissions/`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      if (upcomingResponse.ok) {
+        const upcomingData = await upcomingResponse.json();
+        setUpcomingSubmissions(upcomingData);
       }
   } catch (error) {
       console.error("Failed to fetch profile:", error);
@@ -251,7 +264,7 @@ export default function HomeScreen() {
   useEffect(() => {
     if (!userId) return;
 
-    const wsUrl = `ws://10.136.227.43:8000/ws/notifications/${userId}/`;
+    const wsUrl = `ws://172.20.10.2:8000/ws/notifications/${userId}/`;
     const ws = new WebSocket(wsUrl);
     let wsConnected = false;
 
@@ -400,6 +413,105 @@ export default function HomeScreen() {
                     <Text style={[styles.notifText, { color: colors.text }]}>{n.text}</Text>
                     <Text style={[styles.notifTime, { color: colors.faintText }]}>{n.time}</Text>
                   </View>
+                </TouchableOpacity>
+              ))
+            )}
+          </Card>
+        </View>
+        
+
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>
+              Upcoming Submissions
+            </Text>
+
+            {upcomingSubmissions.length > 0 && (
+              <Badge
+                text={`${upcomingSubmissions.length} Upcoming`}
+                color="#DBEAFE"
+                textColor="#1E40AF"
+              />
+            )}
+          </View>
+
+          <Card style={{ backgroundColor: colors.surface }}>
+            {upcomingSubmissions.length === 0 ? (
+              <View style={styles.emptyUpdates}>
+                <CheckCircle
+                  size={24}
+                  color={colors.faintText}
+                  style={{ marginBottom: 3 }}
+                />
+
+                <Text
+                  style={[
+                    styles.emptyText,
+                    { color: colors.faintText },
+                  ]}
+                >
+                  No upcoming submissions
+                </Text>
+              </View>
+            ) : (
+              upcomingSubmissions.map((item: any, i: number) => (
+                <TouchableOpacity
+                  key={item.id}
+                  style={[
+                    styles.notifItem,
+                    i !== 0 && styles.borderTop,
+                    { borderTopColor: colors.border },
+                  ]}
+                  activeOpacity={0.7}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/reports',
+                      params: { id: item.id },
+                    })
+                  }
+                >
+                  <View style={styles.unreadDot} />
+
+                  <View style={{ marginLeft: 12, flex: 1 }}>
+                    <Text
+                      style={[
+                        styles.notifText,
+                        { color: colors.text },
+                      ]}
+                    >
+                      Next submission scheduled
+                    </Text>
+
+                    <Text
+                    style={[
+                      styles.notifTime,
+                      { color: colors.faintText },
+                    ]}
+                  >
+                    {(() => {
+                      const today = new Date();
+                      const nextDate = new Date(item.next_submission_date);
+
+                      const diffTime =
+                        nextDate.getTime() - today.getTime();
+
+                      const daysLeft = Math.ceil(
+                        diffTime / (1000 * 60 * 60 * 24)
+                      );
+
+                      if (daysLeft === 0) return 'Today';
+                      if (daysLeft === 1) return '1 day remaining';
+
+                      return `${daysLeft} days remaining`;
+                    })()}
+                  </Text>
+                  </View>
+
+                  <Badge
+                    text="Upcoming"
+                    color="#DBEAFE"
+                    textColor="#1E40AF"
+                  />
                 </TouchableOpacity>
               ))
             )}

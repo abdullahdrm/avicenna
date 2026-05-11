@@ -27,7 +27,7 @@ export default function LearnScreen() {
   const [dailyTip, setDailyTip] = useState<DailyTip | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const BASE_URL = 'http://10.136.227.43:8000';
+  const BASE_URL = 'http://172.20.10.2:8000';
   const categories = ['All', 'Acne', 'Anti-Aging', 'Routine', 'Dry Skin', 'Sun', 'Basics'];
 
   const fetchData = async () => {

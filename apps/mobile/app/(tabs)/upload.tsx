@@ -8,7 +8,7 @@ import { ActivityIndicator, Alert, Image, Modal, ScrollView, StyleSheet, Text, T
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLanguage } from '../../lib/LanguageContext';
 
-const BASE_URL = 'http://10.136.227.43:8000';
+const BASE_URL = 'http://172.20.10.2:8000';
 const API_URL = `${BASE_URL}/api`;
 
 export default function UploadScreen() {
