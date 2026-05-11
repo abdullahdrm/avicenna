@@ -7,7 +7,8 @@ import uuid
 from typing import Any, Dict, List, Optional
 
 import requests as _requests
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from job_queue import InMemoryJobQueue
@@ -31,7 +32,12 @@ NUM_WORKERS = int(os.getenv("PROCESSING_WORKERS", "2"))
 store = ProcessingStore(db_path=DB_PATH, image_root=IMAGE_ROOT)
 job_queue = InMemoryJobQueue(store=store, num_workers=NUM_WORKERS)
 
+# Ensure uploads directory exists so StaticFiles can mount it
+_uploads_dir = os.path.join(IMAGE_ROOT, "uploads")
+os.makedirs(_uploads_dir, exist_ok=True)
+
 app = FastAPI(title="Avicenna Processing Server", version="0.1.0")
+app.mount("/images", StaticFiles(directory=IMAGE_ROOT), name="images")
 
 
 @app.on_event("shutdown")
@@ -147,6 +153,40 @@ def analyze_sync(request: AnalysisRequest):
         logger.exception("sync analyze failed")
         raise HTTPException(status_code=500, detail=str(e))
     return result
+
+
+@app.post("/analyze-upload", response_model=EnqueueResponse, tags=["jobs"])
+async def analyze_upload(
+    file: UploadFile = File(...),
+    case_id: str = Form(default=""),
+    patient_info: str = Form(default=""),
+):
+    """Accept a raw image file, save it, enqueue a processing job, return job_id."""
+    image_id = str(uuid.uuid4())
+    cid = case_id or image_id
+    ext = ".jpg"
+
+    upload_path = os.path.join(IMAGE_ROOT, "uploads", f"{image_id}{ext}")
+    contents = await file.read()
+    with open(upload_path, "wb") as f_out:
+        f_out.write(contents)
+
+    # Build a localhost URL so the pipeline can download it via HTTP
+    self_url = f"http://localhost:{os.getenv('PORT', '8081')}/images/uploads/{image_id}{ext}"
+
+    req = AnalysisRequest(
+        image_url=self_url,
+        request_id=str(uuid.uuid4()),
+        case_id=cid,
+        image_id=image_id,
+        extra={"patient_info": patient_info} if patient_info else {},
+    )
+    job_id = str(uuid.uuid4())
+    try:
+        job = job_queue.enqueue(job_id=job_id, req=req, max_attempts=1)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return EnqueueResponse(job_id=job.job_id, status=job.status.value)
 
 
 @app.post("/jobs/{job_id}/analyze-answers", response_model=GeminiAssessmentResponse, tags=["analysis"])

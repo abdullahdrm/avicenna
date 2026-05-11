@@ -33,6 +33,8 @@ from rest_framework.permissions import BasePermission
 ML_SERVICE_URL = "http://127.0.0.1:9000/analyze"
 ML_REQUEST_TIMEOUT = (5, 60)
 
+PROCESSING_SERVER_URL = os.getenv("PROCESSING_SERVER_URL", "http://avicenna.ceng.metu.edu.tr:8081")
+
 
 
 def check_image_quality(image_file):
@@ -348,57 +350,38 @@ class SkinAnalysisViewSet(viewsets.ModelViewSet):
         )
 
         
-        data = {'patient_info': patient_info}
-
         try:
-            ml_response = requests.post(
-                ML_SERVICE_URL,
-                files=files,
-                data=data,
-                timeout=ML_REQUEST_TIMEOUT,
+            ps_response = requests.post(
+                f"{PROCESSING_SERVER_URL}/analyze-upload",
+                files={"file": (image_file.name, image_file.read(), image_file.content_type)},
+                data={"case_id": str(instance.id), "patient_info": patient_info},
+                timeout=15,
             )
-            ml_response.raise_for_status()
-            ml_data = ml_response.json()
+            ps_response.raise_for_status()
+            job_id = ps_response.json().get("job_id")
 
-            clean_name = ml_data.get("model", {}).get("class_name", "Unknown")
-            confidence = ml_data.get("model", {}).get("probability", 0.0)
-            gemini_analysis = ml_data.get("gemini_analysis", "")
-            
-            print("Gemini says:", gemini_analysis)
-
-            instance.prediction = clean_name
-            instance.confidence = confidence
-            instance.ai_analysis = gemini_analysis
-            instance.status = "analyzed"
-            
-            if not medical_case.disease_type:
-                medical_case.disease_type = clean_name
-                medical_case.save(update_fields=['disease_type'])
-
-            instance.save()
+            instance.job_id = job_id
+            instance.status = "processing"
+            instance.save(update_fields=["job_id", "status"])
 
             return Response({
                 "id": instance.id,
-                "status": "analyzed",
-                "prediction": instance.prediction,
-                "confidence": instance.confidence,
-                "ai_analysis": instance.ai_analysis,
-                "message": "Analysis complete.",
-                "medical_case_id": medical_case.id
+                "job_id": job_id,
+                "status": "processing",
+                "message": "Analysis started. Poll check_status for progress.",
+                "medical_case_id": medical_case.id,
             }, status=201)
 
         except requests.exceptions.RequestException as e:
-            print("Docker AI Failed:", e)
-            instance.prediction = "Unknown"
+            print("Processing server failed:", e)
             instance.status = "failed"
-            instance.save()
-
+            instance.save(update_fields=["status"])
             return Response({
                 "id": instance.id,
                 "status": "failed",
-                "message": "AI server did not respond."
+                "message": "Processing server did not respond."
             }, status=500)
-            
+
         """
             try:
             ml_response = requests.post(fastapi_url, files=files, data=data)
@@ -437,7 +420,50 @@ class SkinAnalysisViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
 
         if not instance.prediction:
-            return Response({"status": "processing"})
+            progress_step = instance.progress_step or "queued"
+            # If we have a job_id, fetch live progress from the processing server
+            if instance.job_id:
+                try:
+                    ps_resp = requests.get(
+                        f"{PROCESSING_SERVER_URL}/jobs/{instance.job_id}",
+                        timeout=5,
+                    )
+                    if ps_resp.ok:
+                        ps_data = ps_resp.json()
+                        progress_step = ps_data.get("progress_step") or ps_data.get("status") or progress_step
+                        # Sync to DB so mobile can see it without re-polling processing server
+                        if instance.progress_step != progress_step:
+                            instance.progress_step = progress_step
+                            instance.save(update_fields=["progress_step"])
+                except requests.exceptions.RequestException:
+                    pass
+            # Check if job completed and sync result back to DB
+            if instance.job_id:
+                try:
+                    ps_resp = requests.get(
+                        f"{PROCESSING_SERVER_URL}/jobs/{instance.job_id}",
+                        timeout=5,
+                    )
+                    if ps_resp.ok:
+                        ps_data = ps_resp.json()
+                        if ps_data.get("status") == "completed" and ps_data.get("result"):
+                            metrics = (ps_data["result"].get("metrics") or {})
+                            extra = metrics.get("extra") or {}
+                            prediction = extra.get("problem_type", "Unknown")
+                            confidence = extra.get("confidence", 0.0)
+                            instance.prediction = prediction
+                            instance.confidence = confidence
+                            instance.status = "analyzed"
+                            instance.save(update_fields=["prediction", "confidence", "status"])
+                        elif ps_data.get("status") == "failed":
+                            instance.status = "failed"
+                            instance.save(update_fields=["status"])
+                            return Response({"status": "failed"})
+                except requests.exceptions.RequestException:
+                    pass
+
+            if not instance.prediction:
+                return Response({"status": "processing", "progress_step": progress_step})
 
         disease = instance.prediction.lower()
         questions = []
@@ -536,6 +562,32 @@ class SkinAnalysisViewSet(viewsets.ModelViewSet):
         instance.answers = user_answers
         instance.status = 'analyzed'
         instance.save()
+
+        # Send answers + analysis result to Gemini via processing server
+        gemini_assessment = None
+        if instance.job_id:
+            try:
+                profile = getattr(instance.patient, 'patient_profile', None)
+                patient_info = {
+                    "body_part": instance.body_part,
+                    "pain_level": instance.pain_level,
+                    "duration": instance.duration,
+                    "allergies": profile.allergies if profile else None,
+                    "medications": profile.medications if profile else None,
+                }
+                ps_resp = requests.post(
+                    f"{PROCESSING_SERVER_URL}/jobs/{instance.job_id}/analyze-answers",
+                    json={"answers": user_answers, "patient_info": patient_info},
+                    timeout=30,
+                )
+                if ps_resp.ok:
+                    gemini_assessment = ps_resp.json().get("assessment")
+                    if gemini_assessment:
+                        instance.ai_analysis = gemini_assessment
+                        instance.save(update_fields=["ai_analysis"])
+            except requests.exceptions.RequestException:
+                pass
+
         existing_submission = Submission.objects.filter(
             skin_analysis__medical_case=instance.medical_case
         ).first()
@@ -561,7 +613,8 @@ class SkinAnalysisViewSet(viewsets.ModelViewSet):
         return Response({
             "status": "completed",
             "message": "Answers saved and sent to doctor.",
-            "assigned_doctor": assigned_doctor.username if assigned_doctor else "Unknown"
+            "assigned_doctor": assigned_doctor.username if assigned_doctor else "Unknown",
+            "ai_assessment": gemini_assessment,
         })
 
 

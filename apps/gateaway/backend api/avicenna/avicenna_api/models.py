@@ -215,6 +215,7 @@ class SkinAnalysis(models.Model):
         default=Status.REVIEW
     )
     answers = models.JSONField(default=dict, blank=True)
+    progress_step = models.CharField(max_length=50, blank=True, null=True)
     patient = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='skin_analyses', null=True)
     pain_level = models.IntegerField(default=0)
