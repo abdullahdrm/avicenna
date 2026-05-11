@@ -1,7 +1,7 @@
 from sentence_transformers import SentenceTransformer, CrossEncoder
 from pgvector.django import CosineDistance
 
-from chatbot.models import QAEmbedding
+from avicenna_api.models import QAEmbedding
 
 embedding_model = SentenceTransformer("BAAI/bge-base-en-v1.5")
 reranker = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")

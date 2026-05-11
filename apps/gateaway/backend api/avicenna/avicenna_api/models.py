@@ -320,3 +320,22 @@ class MedicalAuditLog(models.Model):
     def __str__(self):
         username = self.user.username if self.user else "deleted-user"
         return f"[{self.timestamp}] {username} {self.action} {self.resource_type} #{self.resource_id}"
+
+
+class QAEmbedding(models.Model):
+    question = models.TextField()
+    answer = models.TextField()
+
+    content = models.TextField(blank=True)
+
+    embedding = VectorField(dimensions=768)  # BAAI/bge-base-en-v1.5
+
+    source_file = models.CharField(max_length=500, blank=True, default="")
+
+    def save(self, *args, **kwargs):
+        if not self.content:
+            self.content = f"Q: {self.question}\nA: {self.answer}"
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.question[:80]

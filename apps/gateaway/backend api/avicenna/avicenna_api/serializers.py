@@ -1,11 +1,12 @@
+from .models import DoctorProfile, Submission
+from django.db.models import Count
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework import serializers
 from .models import *
 from django.contrib.auth import get_user_model
+from django.utils import timezone
+
 User = get_user_model()
-from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from rest_framework import serializers
-from django.db.models import Count
-from .models import DoctorProfile, Submission
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
@@ -28,8 +29,8 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             'username': self.user.username,
             'email': self.user.email,
             'role': self.user.role,
-            'first_name': self.user.first_name, 
-            'last_name': self.user.last_name, 
+            'first_name': self.user.first_name,
+            'last_name': self.user.last_name,
         }
 
         return data
@@ -38,13 +39,16 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'date_joined']
+        fields = ['id', 'username', 'email',
+                  'first_name', 'last_name', 'date_joined']
 
 
 # DOCTOR
 
 class PatientProfileSerializer(serializers.ModelSerializer):
-    date_joined = serializers.DateTimeField(source='patient.date_joined', read_only=True)
+    date_joined = serializers.DateTimeField(
+        source='patient.date_joined', read_only=True)
+    stats = serializers.SerializerMethodField()
 
     class Meta:
         model = PatientProfile
@@ -58,10 +62,28 @@ class PatientProfileSerializer(serializers.ModelSerializer):
             "height",
             "weight",
             "date_joined",
+            "stats",
         ]
-        
+
+    def get_stats(self, obj):
+        patient = obj.patient
+
+        submissions = Submission.objects.filter(patient=patient)
+
+        return {
+            "days_since_joined": (
+                timezone.now() - patient.date_joined
+            ).days,
+
+            "total_submissions": submissions.count(),
+
+            "reviewed_submissions": submissions.filter(status="reviewed").count(),
+        }
+
+
 class PatientSerializer(serializers.ModelSerializer):
     profile = serializers.SerializerMethodField()
+
     class Meta:
         model = User
         fields = [
@@ -91,9 +113,6 @@ class SubmissionSerializer(serializers.ModelSerializer):
         ]
 
 
-
-
-
 class DoctorProfileSerializer(serializers.ModelSerializer):
     user = serializers.SerializerMethodField()
     stats = serializers.SerializerMethodField()
@@ -119,7 +138,6 @@ class DoctorProfileSerializer(serializers.ModelSerializer):
             "first_name": user.first_name,
             "last_name": user.last_name,
         }
-
 
     def get_stats(self, obj):
         doctor = obj.doctor
@@ -176,9 +194,9 @@ class DoctorPreferencesUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = DoctorProfile
         fields = (
-            'city', 
-            'hospital', 
-            'allowed_days', 
+            'city',
+            'hospital',
+            'allowed_days',
             'max_submissions_per_day'
         )
 
@@ -211,58 +229,63 @@ class ReportCreateSerializer(serializers.ModelSerializer):
             Medication.objects.create(report=report, **med)
 
         return report
-    
+
+
 class SkinAnalysisSerializer(serializers.ModelSerializer):
     formatted_date = serializers.SerializerMethodField()
 
     class Meta:
         model = SkinAnalysis
         fields = [
-            'id', 
-            'image', 
-            'body_part', 
-            'prediction', 
-            'confidence', 
-            'status', 
-            'pain_level', 
-            'duration',   
-            'comments',   
+            'id',
+            'image',
+            'body_part',
+            'prediction',
+            'confidence',
+            'status',
+            'pain_level',
+            'duration',
+            'comments',
             'ai_analysis',
-            'answers',    
-            'created_at', 
+            'answers',
+            'created_at',
             'formatted_date',
             'medical_case'
         ]
 
     def get_formatted_date(self, obj):
         return obj.created_at.strftime('%b %d, %H:%M')
-    
+
+
 class SubmissionDetailSerializer(serializers.ModelSerializer):
     patient = PatientSerializer(read_only=True)
-    skin_analysis = SkinAnalysisSerializer(read_only=True) 
+    skin_analysis = SkinAnalysisSerializer(read_only=True)
     timeline = serializers.SerializerMethodField()
+
     class Meta:
         model = Submission
         fields = [
             "id",
             "patient",
             "timeline",
-            "skin_analysis", 
+            "skin_analysis",
             "status",
         ]
+
     def get_timeline(self, obj):
         case = obj.skin_analysis.medical_case
         if case:
             request = self.context.get('request')
             images = case.timeline_images.all().order_by('created_at')
-            
+
             timeline_data = []
             for img in images:
-                report_obj = getattr(img.submission, 'report', None) if hasattr(img, 'submission') else None
-                
+                report_obj = getattr(img.submission, 'report', None) if hasattr(
+                    img, 'submission') else None
+
                 timeline_data.append({
                     "id": img.id,
-                    "submission_id": img.submission.id if hasattr(img, 'submission') else None, #
+                    "submission_id": img.submission.id if hasattr(img, 'submission') else None,
                     "image": request.build_absolute_uri(img.image.url) if img.image else None,
                     "date": img.created_at.strftime('%b %d, %Y'),
                     "prediction": img.prediction,
@@ -278,16 +301,19 @@ class SubmissionDetailSerializer(serializers.ModelSerializer):
                 })
             return timeline_data
         return []
-    
+
+
 class ArticleSerializer(serializers.ModelSerializer):
     class Meta:
         model = Article
         fields = ['id', 'title', 'category', 'read_time', 'content', 'image']
 
+
 class DailyTipSerializer(serializers.ModelSerializer):
     class Meta:
         model = DailyTip
         fields = ['id', 'content']
+
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
@@ -300,29 +326,34 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         email = validated_data.get('email')
         validated_data['username'] = email
         validated_data['role'] = User.ROLE_PATIENT
-        
+
         password = validated_data.pop('password')
         user = User.objects.create(**validated_data)
         user.set_password(password)
         user.save()
-        
+
         PatientProfile.objects.create(patient=user)
-        
+
         return user
-    
+
+
 class PatientReportSerializer(serializers.ModelSerializer):
     submission_id = serializers.IntegerField(source='id', read_only=True)
-    skin_analysis_id = serializers.IntegerField(source='skin_analysis.id', read_only=True)
+    skin_analysis_id = serializers.IntegerField(
+        source='skin_analysis.id', read_only=True)
     image = serializers.SerializerMethodField()
 
     doctor_name = serializers.SerializerMethodField()
-    diagnosis = serializers.CharField(source='report.diagnosis', default="No diagnosis yet")
+    diagnosis = serializers.CharField(
+        source='report.diagnosis', default="No diagnosis yet")
     doctor_comment = serializers.CharField(source='report.comment', default="")
     medications = serializers.SerializerMethodField()
-    visit_required = serializers.BooleanField(source='report.hospital_visit', default=False)
+    visit_required = serializers.BooleanField(
+        source='report.hospital_visit', default=False)
     date = serializers.SerializerMethodField()
     timeline_images = serializers.SerializerMethodField()
-    place = serializers.CharField(source='skin_analysis.medical_case.title', default="Unknown Area", read_only=True)
+    place = serializers.CharField(
+        source='skin_analysis.medical_case.title', default="Unknown Area", read_only=True)
     status = serializers.CharField()
 
     class Meta:
@@ -388,16 +419,44 @@ class PatientReportSerializer(serializers.ModelSerializer):
     def get_date(self, obj):
         return obj.skin_analysis.created_at.strftime('%b %d, %Y')
 
-    
 
 class MedicalCaseSerializer(serializers.ModelSerializer):
     timeline_images = SkinAnalysisSerializer(many=True, read_only=True)
 
     class Meta:
         model = MedicalCase
-        fields = ['id', 'title', 'disease_type', 'created_at', 'is_active', 'timeline_images']
-        
+        fields = ['id', 'title', 'disease_type',
+                  'created_at', 'is_active', 'timeline_images']
+
+
 class NotificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Notification
         fields = ['id', 'message', 'is_read', 'created_at', 'submission']
+
+
+class MedicalCaseMiniSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MedicalCase
+        fields = ["id", "title", "disease_type", "is_active"]
+
+
+class PatientUpcomingSubmissionSerializer(serializers.ModelSerializer):
+    medical_case = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Submission
+        fields = [
+            "id",
+            "doctor",
+            "status",
+            "created_at",
+            "medical_case",
+        ]
+
+    def get_medical_case(self, obj):
+        if obj.skin_analysis and obj.skin_analysis.medical_case:
+            return MedicalCaseMiniSerializer(
+                obj.skin_analysis.medical_case
+            ).data
+        return None

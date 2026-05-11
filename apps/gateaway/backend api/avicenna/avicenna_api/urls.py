@@ -41,8 +41,14 @@ urlpatterns = [
     path('notifications/<int:id>/read/',
          MarkNotificationReadView.as_view(), name='mark-notif-read'),
     path('chat/', ChatView.as_view(), name='chat'),
-    path('patient/reports/', PatientReportsView.as_view(), name='patient-reports'), 
-    path('notifications/', NotificationListView.as_view(), name='user-notifications'),
-    path('notifications/<int:id>/read/', MarkNotificationReadView.as_view(), name='mark-notif-read'),
-    path('analyze-skin/', views.AnalyzeSkinView.as_view(), name='analyze-skin'),
+    path('patient/reports/', PatientReportsView.as_view(), name='patient-reports'),
+    path('notifications/', NotificationListView.as_view(),
+         name='user-notifications'),
+    path('notifications/<int:id>/read/',
+         MarkNotificationReadView.as_view(), name='mark-notif-read'),
+    path(
+        "patient/upcoming-submissions/",
+        PatientUpcomingSubmissionsView.as_view(),
+        name="patient-upcoming-submissions",
+    )
 ]

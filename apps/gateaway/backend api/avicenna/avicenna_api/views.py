@@ -28,11 +28,12 @@ import os
 from django.conf import settings
 from django.http import FileResponse, Http404
 from rest_framework.permissions import BasePermission
+from django.utils import timezone
+
 # Create your views here.
 
-ML_SERVICE_URL = "http://127.0.0.1:9000/analyze"
+ML_SERVICE_URL = "http://avicenna.ceng.metu.edu.tr:8080/analyze"
 ML_REQUEST_TIMEOUT = (5, 60)
-
 
 
 def check_image_quality(image_file):
@@ -78,7 +79,8 @@ class DoctorSubmissionsView(ListAPIView):
         return (
             Submission.objects
             .filter(doctor=self.request.user)
-            .order_by('-created_at')
+            .select_related("patient")
+            .order_by("-created_at")
         )
 
 
@@ -237,6 +239,11 @@ class SubmissionReportCreateView(APIView):
         serializer = ReportCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
+        if submission.skin_analysis:
+            submission.skin_analysis.ai_analysis = request.data.get(
+                "ai_analysis")
+            submission.skin_analysis.save(update_fields=["ai_analysis"])
+
         report = serializer.save(submission=submission)
 
         submission.status = "reviewed"
@@ -321,12 +328,13 @@ class SkinAnalysisViewSet(viewsets.ModelViewSet):
         full_image_url = request.build_absolute_uri(instance.image.url)
 
         image_file.seek(0)
-        files = {'file': (image_file.name, image_file.read(), image_file.content_type)}
-        
+        files = {'file': (image_file.name, image_file.read(),
+                          image_file.content_type)}
+
         profile = getattr(request.user, 'patient_profile', None)
         allergies = profile.allergies if profile else "None reported"
         medications = profile.medications if profile else "None reported"
-        
+
         past_cases = MedicalCase.objects.filter(
             patient=request.user
         ).exclude(
@@ -334,9 +342,10 @@ class SkinAnalysisViewSet(viewsets.ModelViewSet):
         ).exclude(
             disease_type=""
         ).values_list('disease_type', flat=True)
-        
+
         unique_past_diseases = list(set(past_cases))
-        overall_history = ", ".join(unique_past_diseases) if unique_past_diseases else "None"
+        overall_history = ", ".join(
+            unique_past_diseases) if unique_past_diseases else "None"
 
         patient_info = (
             f"Body Part: {instance.body_part}. "
@@ -347,7 +356,6 @@ class SkinAnalysisViewSet(viewsets.ModelViewSet):
             f"Patient's Overall Diagnostic History: {overall_history}."
         )
 
-        
         data = {'patient_info': patient_info}
 
         try:
@@ -363,14 +371,14 @@ class SkinAnalysisViewSet(viewsets.ModelViewSet):
             clean_name = ml_data.get("model", {}).get("class_name", "Unknown")
             confidence = ml_data.get("model", {}).get("probability", 0.0)
             gemini_analysis = ml_data.get("gemini_analysis", "")
-            
+
             print("Gemini says:", gemini_analysis)
 
             instance.prediction = clean_name
             instance.confidence = confidence
             instance.ai_analysis = gemini_analysis
             instance.status = "analyzed"
-            
+
             if not medical_case.disease_type:
                 medical_case.disease_type = clean_name
                 medical_case.save(update_fields=['disease_type'])
@@ -398,7 +406,7 @@ class SkinAnalysisViewSet(viewsets.ModelViewSet):
                 "status": "failed",
                 "message": "AI server did not respond."
             }, status=500)
-            
+
         """
             try:
             ml_response = requests.post(fastapi_url, files=files, data=data)
@@ -431,7 +439,7 @@ class SkinAnalysisViewSet(viewsets.ModelViewSet):
                 "message": "Analysis complete.",
                 "medical_case_id": medical_case.id
             }, status=201) """
-            
+
     @action(detail=True, methods=['get'])
     def check_status(self, request, pk=None):
         instance = self.get_object()
@@ -696,32 +704,53 @@ class SecureMediaView(APIView):
             return FileResponse(open(full_path, 'rb'))
         else:
             raise Http404("Image not found.")
-        
-class AnalyzeSkinView(APIView):
-    permission_classes = [IsAuthenticated] 
-    parser_classes = [MultiPartParser, FormParser] 
+
+
+class ChatView(APIView):
+    permission_classes = [IsAuthenticatedOrServer]
 
     def post(self, request):
-        image_file = request.FILES.get('file')
-        patient_info = request.data.get('patient_info', 'No specific symptoms reported.')
 
-        if not image_file:
-            return Response({"error": "No image provided"}, status=400)
+        user_prompt = request.data.get("message", "")
+        graph = build_graph_for_user(request.user)
 
-        files = {'file': (image_file.name, image_file.read(), image_file.content_type)}
-        data = {'patient_info': patient_info}
+        result = graph.invoke({
+            "messages": [HumanMessage(content=user_prompt)]
+        })
 
-        try:
-            ml_response = requests.post(
-                ML_SERVICE_URL,
-                files=files,
-                data=data,
-                timeout=ML_REQUEST_TIMEOUT,
+        last_message = result["messages"][-1]
+        answer = last_message.content
+
+        if "text" in answer[0]:
+            answer = answer[0]["text"]
+            return Response({"answer": answer})
+
+        return Response({"answer": str(answer)})
+
+
+class PatientUpcomingSubmissionsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        today = timezone.localdate()
+
+        submissions = (
+            Submission.objects
+            .filter(
+                patient=request.user,
+                report__next_submission_date__isnull=False,
+                report__next_submission_date__gte=today,
             )
-            ml_response.raise_for_status() 
-            ml_data = ml_response.json()
+            .select_related(
+                "doctor",
+                "report",
+                "skin_analysis",
+                "skin_analysis__medical_case",
+            )
+            .order_by("report__next_submission_date")
+        )
 
-            return Response(ml_data)
-
-        except requests.exceptions.RequestException as e:
-            return Response({"error": f"Server Error: {str(e)}"}, status=503)
+        serializer = PatientUpcomingSubmissionSerializer(
+            submissions, many=True
+        )
+        return Response(serializer.data)
