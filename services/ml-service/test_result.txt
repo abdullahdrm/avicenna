@@ -1,0 +1,22 @@
+1. Sunucuya İstek Hazırlanıyor...
+2. İstek API'ye Gönderiliyor (Tahmin süresi modelin performansına göre birkaç saniye sürebilir)...
+
+ API'DEN GELEN 1. BAŞARILI CEVAP (/analyze):
+
+{
+    "status": "success",
+    "model": {
+        "class_name": "fungal",
+        "probability": 0.85
+    },
+    "gemini_analysis": "The most likely condition is acne. More specifically, this appears consistent with inflammatory acne vulgaris, characterized by red papules and pustules on the face. The overall clinical picture strongly suggests a common dermatological condition related to follicular inflammation.\n\nThe model's primary prediction was \"fungal,\" but this diagnosis is unlikely given the visual evidence. Fungal infections typically present with different morphological features such as annular plaques with scaling or specific patterns of folliculitis that are not visible here. Instead, the observed lesions, which are predominantly papules and pustules, align much more closely with acne. Therefore, the model's primary prediction is not supported by the visual and historical context.\n\nClinical analysis reveals numerous erythematous papules and pustules across the forehead, consistent with the patient's age and complaint of \"red acne on the face.\" These findings are characteristic of inflammatory acne vulgaris, where obstructed sebaceous follicles become inflamed and infected with Propionibacterium acnes. Other conditions like rosacea might present with similar redness and papules, but the presence of distinct pustules and the patient's age make acne vulgaris a more fitting diagnosis. Eczema or psoriasis would typically manifest with different primary lesions such as intensely itchy plaques or silvery scales, which are absent.\n\nA conservative treatment strategy for inflammatory acne typically involves good skin hygiene using a gentle cleanser. Topical treatments containing ingredients like benzoyl peroxide or retinoids can be very effective in reducing inflammation and preventing new lesions. It is important to avoid picking or squeezing lesions to prevent scarring and worsening of inflammation. If the condition persists or significantly worsens, a re-evaluation by a dermatologist is recommended for more advanced treatment options.\n\nFor the doctor's reference: Considering the patient's history of tried creams without success, a trial of a combination topical therapy with a retinoid (e.g., adapalene 0.1% gel) and benzoyl peroxide (e.g., 2.5% or 5% wash/cream) is recommended. If severe, oral antibiotics (e.g., doxycycline) or isotretinoin may be considered after a full evaluation. Herbal options like tea tree oil (diluted) or witch hazel can be considered as adjunctive therapy for their anti-inflammatory properties.",
+    "gemini_summary": "The patient presents with inflammatory acne vulgaris on the face, characterized by red papules and pustules. A treatment strategy involving topical therapies like retinoids and benzoyl peroxide is recommended, with a dermatology review if needed.",
+    "gemini_final_response": {
+        "class": "acne vulgaris",
+        "probability": 0.98
+    },
+    "gemini_final_response_form": {
+        "class": "acne",
+        "probability": 0.98
+    }
+}
