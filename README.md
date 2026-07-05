@@ -271,7 +271,7 @@ Sample image: `services/ml-service/ornek_resim.jpg`
 
 | Notebook | Description |
 |---|---|
-| [`services/ml-service/final_5_class/final_code_avixenna_5_classes.ipynb`](services/ml-service/final_5_class/final_code_avixenna_5_classes.ipynb) | ✅ **Final** 5-class SwinV2 full pipeline (CC + CLAHE + Unsharp Mask) |
+| [`services/ml-service/final_5_class/final_code_avixenna_5_classes.ipynb`](services/ml-service/final_5_class/final_code_avixenna_5_classes.ipynb) | Final 5-class SwinV2 training — full preprocessing pipeline |
 | [`ml/notebooks/dermnet_f1_oriented_model_analysis.ipynb`](ml/notebooks/dermnet_f1_oriented_model_analysis.ipynb) | F1-oriented model analysis & ablation |
 | [`ml/notebooks/kaggle-swin-transformer-v1.ipynb`](ml/notebooks/kaggle-swin-transformer-v1.ipynb) | SwinV1 baseline — DermNet (Kaggle) |
 | [`ml/notebooks/kaggle-swin-transformer-v2.ipynb`](ml/notebooks/kaggle-swin-transformer-v2.ipynb) | SwinV2 experiments — DermNet (Kaggle) |
