@@ -82,8 +82,9 @@ Color correction before contrast enhancement; sharpening last to avoid amplifyin
 | Test F1 Weighted | **0.8396** |
 | Test F1 Macro | **0.8468** |
 | Best Val F1 Weighted | 0.8100 (epoch 44) |
-| Training Set | 6,466 images (DermNet) |
+| Training Set | 6,466 images |
 | Val / Test | 806 / 806 images |
+| Datasets | [DermNet (Kaggle)](https://www.kaggle.com/datasets/shubhamgoel27/dermnet) + [Derm1M (HuggingFace)](https://huggingface.co/datasets/redlessone/Derm1M) |
 
 ---
 
@@ -135,11 +136,11 @@ avicenna/
 │       └── .env.example
 ├── ml/
 │   ├── notebooks/                   # All Swin training experiments
-│   │   ├── final-model-acne04.ipynb     # ✅ Final 5-class SwinV2 pipeline
-│   │   ├── dermnet_f1_oriented_model_analysis.ipynb
-│   │   ├── kaggle-swin-transformer-v1.ipynb
-│   │   ├── kaggle-swin-transformer-v2.ipynb
-│   │   └── swin-transfomer-v3.ipynb
+│   │   ├── final_code_avixenna_5_classes.ipynb  # ✅ Final 5-class SwinV2 training — full preprocessing pipeline
+│   │   ├── dermnet_f1_oriented_model_analysis.ipynb # F1-oriented model analysis & ablation
+│   │   ├── kaggle-swin-transformer-v1.ipynb         # SwinV1 baseline experiments
+│   │   ├── kaggle-swin-transformer-v2.ipynb         # SwinV2 experiments
+│   │   └── swin-transfomer-v3.ipynb                 # SwinV2 + preprocessing experiments
 │   ├── preprocessing/segmentation/  # Skin segmentation microservice (FastAPI)
 │   └── datasets/                    # Sample test images
 ├── rag_dataset/                     # 1,800-entry dermatology Q&A dataset (JSONL)
@@ -181,7 +182,7 @@ services/ml-service/final_5_class/dermnet_5class_cc_clahe_lab_unsharp_hsvv_v2_im
 ```
 
 > 📦 Weights are excluded from this repo (~186 MB).  
-> Train from scratch using `ml/notebooks/final-model-acne04.ipynb`.
+> Train from scratch using `services/ml-service/final_5_class/final_code_avixenna_5_classes.ipynb`.
 
 ### 3. Run with Docker
 
@@ -259,6 +260,21 @@ Sample image: `services/ml-service/ornek_resim.jpg`
 
 ---
 
+## 📓 Notebooks
+
+| Notebook | Description |
+|---|---|
+| [`services/ml-service/final_5_class/final_code_avixenna_5_classes.ipynb`](services/ml-service/final_5_class/final_code_avixenna_5_classes.ipynb) | ✅ **Final** 5-class SwinV2 full pipeline (CC + CLAHE + Unsharp Mask) |
+| [`ml/notebooks/dermnet_f1_oriented_model_analysis.ipynb`](ml/notebooks/dermnet_f1_oriented_model_analysis.ipynb) | F1-oriented model analysis & ablation |
+| [`ml/notebooks/kaggle-swin-transformer-v1.ipynb`](ml/notebooks/kaggle-swin-transformer-v1.ipynb) | SwinV1 baseline — DermNet (Kaggle) |
+| [`ml/notebooks/kaggle-swin-transformer-v2.ipynb`](ml/notebooks/kaggle-swin-transformer-v2.ipynb) | SwinV2 experiments — DermNet (Kaggle) |
+| [`ml/notebooks/swin-transfomer-v3.ipynb`](ml/notebooks/swin-transfomer-v3.ipynb) | SwinV2 + preprocessing — Kaggle + Derm1M |
+| [`llm/llm_gemini_reasoning.ipynb`](llm/llm_gemini_reasoning.ipynb) | Gemini reasoning integration experiments |
+| [`llm/llm_reasoning_with_swin_model.ipynb`](llm/llm_reasoning_with_swin_model.ipynb) | Combined vision + LLM pipeline experiments |
+| [`rag_dataset/gemini_dataset_create.py`](rag_dataset/gemini_dataset_create.py) | Dermatology RAG dataset generation (1,800 Q&A) |
+
+---
+
 ## ⚙️ Environment Variables
 
 | Variable | Description |
@@ -278,7 +294,7 @@ Copy `services/ml-service/.env.example` → `services/ml-service/.env`.
 | LLM | Google Gemini 2.5 Flash · structured JSON output · 5-paragraph clinical prompt |
 | API | FastAPI + Uvicorn |
 | Containerization | Docker · Docker Compose |
-| Dataset | DermNet — 5-class · 6,466 training / 806 val / 806 test images |
+| Datasets | [DermNet (Kaggle)](https://www.kaggle.com/datasets/shubhamgoel27/dermnet) + [Derm1M (HuggingFace)](https://huggingface.co/datasets/redlessone/Derm1M) · 5-class · 6,466 train / 806 val / 806 test |
 
 ---
 
