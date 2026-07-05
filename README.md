@@ -1,7 +1,10 @@
 # Avicenna — AI-Powered Dermatology Assistant
 
-> A full-stack AI system that analyzes skin condition images using a fine-tuned **Swin Transformer V2** model and provides clinical reasoning via **Google Gemini 2.5 Flash**.  
-> Built as a graduation project at **METU (Middle East Technical University)**.
+> An AI-assisted digital teledermatology platform that connects patients with certified dermatologists through an intelligent clinical decision-support pipeline.  
+> Built as a graduation project — **METU CENG 492, Spring 2025–2026.**
+
+This repository contains the **computer vision & AI report generation** components of the system:
+the fine-tuned **SwinV2 Small** skin condition classifier and the **Gemini 2.5 Flash** clinical reasoning pipeline.
 
 ---
 
@@ -9,60 +12,67 @@
 
 ![Avicenna Full System Pipeline](docs/assets/full_system.png)
 
-The pipeline works in two parallel tracks:
+Avicenna is not an autonomous diagnostic agent — it is a **doctor-in-the-loop decision support system**.  
+The AI generates a draft report; a certified dermatologist reviews, edits, and approves it before it ever reaches the patient.
 
-- **Vision Track:** Raw skin image → Color Constancy → CLAHE (LAB-L) → Unsharp Mask (HSV-V) → SwinV2 → Top-1 class + probability
-- **Context Track:** Patient info (age, gender, history) + complaint → fed into Gemini alongside vision output
-- **Fusion:** Gemini 2.5 Flash receives vision predictions, patient context, and the preprocessed image to generate a structured clinical report with a detailed analysis, a summary, and a dedicated medical advice paragraph
+**End-to-end flow:**
+
+1. Patient uploads a skin image + symptom info via the mobile app
+2. Image passes through the **preprocessing pipeline** (Color Constancy → CLAHE → Unsharp Mask)
+3. **SwinV2 Small** classifies the condition into 5 classes with confidence scores
+4. **Gemini 2.5 Flash** receives the vision output + patient context and generates a structured clinical report
+5. The draft is routed to the **doctor dashboard** for review and approval
+6. Patient receives the finalized report only after the doctor signs off
 
 ---
 
-## 🧠 Model: Fine-Tuned SwinV2 Small
+## 🧠 ML Pipeline: Fine-Tuned SwinV2 Small
 
 ![SwinV2 Fine-Tuning Strategy & Preprocessing Results](docs/assets/swin_model_info.png)
 
 ### 3-Stage Fine-Tuning Strategy
 
-The backbone `swinv2_small_window8_256.ms_in1k` (pre-trained on ImageNet-1K, 24 transformer blocks) was fine-tuned progressively:
+Backbone: `swinv2_small_window8_256.ms_in1k` — pre-trained on ImageNet-1K, 24 transformer blocks.  
+Progressive unfreezing from head-only adaptation to full model fine-tuning:
 
-| Stage | What's Trainable | Input Size | Key Settings |
+| Stage | Trainable Layers | Input Size | Key Settings |
 |---|---|---|---|
-| **Stage 1** — Head & Norm Adaptation | head, norm | 224 | LR: head 8e-4 / norm 2e-5 · Mixup ON · 3 epochs |
-| **Stage 2** — Partial Backbone | layers.2, layers.3, head, norm | 224→256 | LR: layers 2.4e-5–3e-5 · Early stop patience 5 · 35 max epochs |
-| **Stage 3** — Full Model Fine-Tuning | all layers | 256 | LR: backbone 1.2e-5 / head 2.5e-5 · Mixup OFF · 12 epochs |
+| **Stage 1** — Head & Norm | head, norm | 224 | LR: head 8e-4 / norm 2e-5 · Mixup ON · 3 epochs |
+| **Stage 2** — Partial Backbone | layers.2, layers.3, head, norm | 224 → 256 | LR: 2.4e-5–3e-5 · Early stop patience 5 · max 35 epochs |
+| **Stage 3** — Full Model | all layers | 256 | LR: backbone 1.2e-5 / head 2.5e-5 · Mixup OFF · 12 epochs |
 
-### Preprocessing Pipeline Impact
+### Preprocessing Pipeline — Incremental Ablation
 
-Each preprocessing step was added incrementally and evaluated on the test set:
+Each step was added and evaluated independently to measure its contribution:
 
 | Configuration | Preprocessing | Test Acc | F1 Weighted | F1 Macro |
 |---|---|---|---|---|
-| Fine-Tuned Baseline | None (raw image) | 82.11 | 81.98 | 81.79 |
+| Fine-Tuned Baseline | None | 82.11 | 81.98 | 81.79 |
 | + Color Constancy | Shades of Gray | 82.38 (+0.27) | 82.32 (+0.34) | 83.14 (+1.35) |
 | + CLAHE | CC + CLAHE (LAB-L) | 83.13 (+0.75) | 83.14 (+0.82) | 83.87 (+0.73) |
-| **+ Unsharp Mask (Full Pipeline)** | **CC + CLAHE + Unsharp (HSV-V)** | **84.00 (+0.87)** | **83.96 (+0.82)** | **84.68 (+0.81)** |
+| **+ Unsharp Mask — Full Pipeline** | **CC + CLAHE + Unsharp (HSV-V)** | **84.00 (+0.87)** | **83.96 (+0.82)** | **84.68 (+0.81)** |
 
 **Net gain over baseline: +1.89 Accuracy · +1.98 F1 Weighted · +2.89 F1 Macro**
 
-### Why This Preprocessing Order?
+### Why This Order?
 
 ```
 RGB Image
-  → Color Constancy (Shades of Gray)   # standardize lighting & color balance first
+  → Color Constancy (Shades of Gray)     # normalize lighting & color balance first
   → LAB color space
-  → CLAHE on L channel only            # local contrast enhancement, color-safe
+  → CLAHE on L channel only              # local contrast — keeps color channels intact
   → back to RGB
   → HSV color space
-  → Unsharp Mask on V channel only     # edge/texture sharpening, no hue/saturation impact
+  → Unsharp Mask on V channel only       # texture/edge sharpening — no hue/saturation distortion
   → back to RGB
   → SwinV2 inference
 ```
 
-Color correction must happen before contrast enhancement; sharpening last to avoid amplifying noise.
+Color correction before contrast enhancement; sharpening last to avoid amplifying noise early.
 
 ---
 
-## 📊 Final Model Performance
+## 📊 Final Model Results
 
 | Metric | Value |
 |---|---|
@@ -77,32 +87,70 @@ Color correction must happen before contrast enhancement; sharpening last to avo
 
 ---
 
+## 💬 Gemini Report Generation
+
+Gemini 2.5 Flash receives:
+- Vision model's **top-3 predictions** with probabilities
+- **Patient info:** age, gender, medical history, active allergies, skin type
+- **Patient complaint:** reported symptoms
+
+And returns a **structured JSON report** with:
+
+| Field | Description |
+|---|---|
+| `gemini_analysis` | 5-paragraph clinical analysis (see structure below) |
+| `gemini_summary` | ≤50-word summary of the analysis |
+| `gemini_final_response` | Specific clinical subtype + confidence |
+| `gemini_final_response_form` | Constrained 5-class label + confidence |
+
+**The 5-paragraph analysis structure:**
+1. **Diagnosis** — broad umbrella label + specific subtype if supported
+2. **Model Evaluation** — agrees/disagrees with SwinV2 and explains why
+3. **Clinical Reasoning** — visual findings + symptom correlation, differential diagnosis
+4. **Treatment Approach** — conservative patient-facing recommendations
+5. **Doctor Recommendation** — specific medical & herbal options for the physician only
+
+The report is **never sent directly to the patient** — it goes to the doctor dashboard first.
+
+---
+
 ## 🏗️ Repository Structure
 
 ```
 avicenna/
 ├── services/
-│   └── ml-service/              # FastAPI — classification + Gemini reasoning
+│   └── ml-service/                  # FastAPI — classification + Gemini reasoning
 │       ├── app/
-│       │   ├── main.py              # REST API endpoints
-│       │   └── gemini_service.py    # Gemini 2.5 Flash integration
+│       │   ├── main.py                  # REST API endpoints
+│       │   └── gemini_service.py        # Gemini 2.5 Flash integration & prompt logic
 │       ├── services/
 │       │   ├── gemini_service.py
 │       │   └── patient_health_report_service.py
-│       ├── final_5_class/           # Training artifacts, confusion matrices, metrics JSON
+│       ├── final_5_class/               # Training artifacts, confusion matrices, metrics JSON
+│       │   ├── summary_...json              # Full training run metrics
+│       │   ├── final_code_avixenna_5_classes.ipynb
+│       │   └── cm_val_*.png             # Confusion matrix plots
 │       ├── Dockerfile
-│       └── requirements.txt
+│       ├── requirements.txt
+│       └── .env.example
 ├── ml/
-│   ├── notebooks/               # Training notebooks (all Swin experiments)
+│   ├── notebooks/                   # All Swin training experiments
+│   │   ├── final-model-acne04.ipynb     # ✅ Final 5-class SwinV2 pipeline
+│   │   ├── dermnet_f1_oriented_model_analysis.ipynb
+│   │   ├── kaggle-swin-transformer-v1.ipynb
+│   │   ├── kaggle-swin-transformer-v2.ipynb
+│   │   └── swin-transfomer-v3.ipynb
 │   ├── preprocessing/segmentation/  # Skin segmentation microservice (FastAPI)
-│   └── datasets/                # Sample test images
-├── rag_dataset/                 # 1,800-entry dermatology Q&A dataset (JSONL)
-│   └── gemini_dataset_create.py     # Dataset generation pipeline
-├── llm/                         # LLM reasoning experiments & notebooks
-├── swim_model/                  # Early Swin model experiments
-├── docs/assets/                 # Architecture diagrams
-├── docker-compose.yaml          # Single-command deployment
-└── apps/                        # Mobile & web frontends
+│   └── datasets/                    # Sample test images
+├── rag_dataset/                     # 1,800-entry dermatology Q&A dataset (JSONL)
+│   └── gemini_dataset_create.py         # Dataset generation pipeline via Gemini
+├── llm/                             # LLM reasoning experiments & notebooks
+│   ├── llm_gemini_reasoning.ipynb
+│   └── llm_reasoning_with_swin_model.ipynb
+├── swim_model/                      # Early Swin model experiments
+├── docs/assets/                     # Architecture & training diagrams
+├── docker-compose.yaml              # Single-command deployment
+└── apps/                            # Mobile & web frontends (separate team)
 ```
 
 ---
@@ -112,7 +160,7 @@ avicenna/
 ### Prerequisites
 - Docker & Docker Compose
 - A [Google Gemini API Key](https://aistudio.google.com/app/apikey)
-- Model weights file (~186 MB, see below)
+- Model weights file (~186 MB, not included — see below)
 
 ### 1. Clone & configure
 
@@ -126,14 +174,14 @@ cp services/ml-service/.env.example services/ml-service/.env
 
 ### 2. Add model weights
 
-Place the weights file at:
+Place the weights at:
 
 ```
 services/ml-service/final_5_class/dermnet_5class_cc_clahe_lab_unsharp_hsvv_v2_improved_best.pth
 ```
 
-> 📦 Weights are not included in this repo (~186 MB).  
-> To train from scratch, use `ml/notebooks/final-model-acne04.ipynb`.
+> 📦 Weights are excluded from this repo (~186 MB).  
+> Train from scratch using `ml/notebooks/final-model-acne04.ipynb`.
 
 ### 3. Run with Docker
 
@@ -149,13 +197,11 @@ ML service → **`http://localhost:9000`**
 
 ### `POST /analyze`
 
-Analyzes a skin image and returns classification + Gemini clinical reasoning.
-
 **Request** (`multipart/form-data`):
 
 | Field | Type | Description |
 |---|---|---|
-| `file` | image | Skin photo (JPG/PNG) |
+| `file` | image | Skin photo (JPG / PNG) |
 | `patient_info` | string | Age, gender, symptoms, history (optional) |
 
 **Response:**
@@ -167,7 +213,7 @@ Analyzes a skin image and returns classification + Gemini clinical reasoning.
     "class_name": "eczema",
     "probability": 0.87
   },
-  "gemini_analysis": "The most likely condition is eczema. [5-paragraph clinical report]",
+  "gemini_analysis": "The most likely condition is eczema...",
   "gemini_summary": "Eczema with contact dermatitis pattern detected. Dermatology review advised.",
   "gemini_final_response": {
     "class": "contact dermatitis",
@@ -179,13 +225,6 @@ Analyzes a skin image and returns classification + Gemini clinical reasoning.
   }
 }
 ```
-
-**`gemini_analysis` structure (5 paragraphs):**
-1. **Diagnosis** — broad umbrella label + specific subtype
-2. **Model Evaluation** — agrees/disagrees with SwinV2 prediction and explains why
-3. **Clinical Reasoning** — visual findings linked to symptoms, differential diagnosis
-4. **Treatment Approach** — conservative patient-facing recommendations
-5. **Doctor Recommendation** — specific medical & herbal options for the physician
 
 ### `GET /health`
 
@@ -209,29 +248,14 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ## 🧪 Testing
 
 ```bash
-# Classification + Gemini end-to-end test
+# End-to-end classification + Gemini test
 python services/ml-service/test_et.py
 
-# Gemini-only connection test
+# Gemini connection test
 python services/ml-service/test_gemini_class.py
 ```
 
 Sample image: `services/ml-service/ornek_resim.jpg`
-
----
-
-## 📓 Notebooks
-
-| Notebook | Description |
-|---|---|
-| `ml/notebooks/final-model-acne04.ipynb` | ✅ Final 5-class SwinV2 training (full pipeline) |
-| `ml/notebooks/dermnet_f1_oriented_model_analysis.ipynb` | F1-oriented model analysis & ablation |
-| `ml/notebooks/kaggle-swin-transformer-v1.ipynb` | SwinV1 baseline experiments |
-| `ml/notebooks/kaggle-swin-transformer-v2.ipynb` | SwinV2 experiments |
-| `ml/notebooks/swin-transfomer-v3.ipynb` | SwinV2 + preprocessing experiments |
-| `llm/llm_gemini_reasoning.ipynb` | Gemini reasoning integration |
-| `llm/llm_reasoning_with_swin_model.ipynb` | Full pipeline (vision + LLM) experiments |
-| `rag_dataset/gemini_dataset_create.py` | Dermatology RAG dataset generation (1,800 Q&A) |
 
 ---
 
@@ -241,7 +265,7 @@ Sample image: `services/ml-service/ornek_resim.jpg`
 |---|---|
 | `GEMINI_API_KEY` | Google Gemini API key — [get one here](https://aistudio.google.com/app/apikey) |
 
-Copy `.env.example` → `.env` inside `services/ml-service/`.
+Copy `services/ml-service/.env.example` → `services/ml-service/.env`.
 
 ---
 
@@ -249,21 +273,15 @@ Copy `.env.example` → `.env` inside `services/ml-service/`.
 
 | Layer | Technology |
 |---|---|
-| ML Model | SwinV2 Small (`timm`) + PyTorch · 3-stage fine-tuning |
-| Image Preprocessing | Color Constancy · CLAHE (LAB-L) · Unsharp Mask (HSV-V) · OpenCV · PIL |
-| LLM Reasoning | Google Gemini 2.5 Flash · structured JSON output · 5-paragraph prompt |
+| ML Model | SwinV2 Small (`timm`) + PyTorch · 3-stage progressive fine-tuning |
+| Preprocessing | Color Constancy (Shades of Gray) · CLAHE (LAB-L) · Unsharp Mask (HSV-V) · OpenCV · PIL |
+| LLM | Google Gemini 2.5 Flash · structured JSON output · 5-paragraph clinical prompt |
 | API | FastAPI + Uvicorn |
 | Containerization | Docker · Docker Compose |
-| Dataset | DermNet — 5-class, 6,466 training images |
-
----
-
-## 👥 Team
-
-Built by Group 14 — METU Computer Engineering, 2025–2026.
+| Dataset | DermNet — 5-class · 6,466 training / 806 val / 806 test images |
 
 ---
 
 ## 📄 License
 
-This project was developed for academic purposes at METU.
+Developed for academic purposes — METU CENG 492, Spring 2025–2026.
