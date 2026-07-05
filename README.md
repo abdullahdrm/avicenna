@@ -1,10 +1,10 @@
 # Avicenna — AI-Powered Dermatology Assistant
 
-> An AI-assisted digital teledermatology platform that connects patients with certified dermatologists through an intelligent clinical decision-support pipeline.  
-> Built as a graduation project — **METU CENG 492, Spring 2025–2026.**
+> A personalized, AI-assisted dermatology platform that acts as an intelligent assistant for doctors — combining computer vision, longitudinal disease tracking, and generative AI to support clinical decision-making.  
+> Built over two semesters — **METU CENG 491 (Fall) + CENG 492 (Spring), 2025–2026.**
 
 This repository contains the **computer vision & AI report generation** components of the system:
-the fine-tuned **SwinV2 Small** skin condition classifier and the **Gemini 2.5 Flash** clinical reasoning pipeline.
+the fine-tuned **SwinV2 Small** skin condition classifier and the **VLM-powered** (Gemini 2.5 Flash) clinical reasoning pipeline.
 
 ---
 
@@ -12,17 +12,21 @@ the fine-tuned **SwinV2 Small** skin condition classifier and the **Gemini 2.5 F
 
 ![Avicenna Full System Pipeline](docs/assets/full_system.png)
 
-Avicenna is not an autonomous diagnostic agent — it is a **doctor-in-the-loop decision support system**.  
-The AI generates a draft report; a certified dermatologist reviews, edits, and approves it before it ever reaches the patient.
+Avicenna is not an autonomous diagnostic agent — it is a **doctor-in-the-loop AI assistant**.
+
+The goal is to act as a **personalized dermatology companion**: every submission is linked to the patient's full history, so doctors can observe how a condition evolves over time — not just assess a single snapshot. This longitudinal tracking enables more controlled, data-driven monitoring at each stage of a disease.
+
+The AI generates a structured draft report; a certified dermatologist reviews, edits, and approves it before it ever reaches the patient.
 
 **End-to-end flow:**
 
 1. Patient uploads a skin image + symptom info via the mobile app
 2. Image passes through the **preprocessing pipeline** (Color Constancy → CLAHE → Unsharp Mask)
 3. **SwinV2 Small** classifies the condition into 5 classes with confidence scores
-4. **Gemini 2.5 Flash** receives the vision output + patient context and generates a structured clinical report
+4. A **VLM** (Gemini 2.5 Flash) receives the vision output, patient context, and historical data — and generates a structured clinical report
 5. The draft is routed to the **doctor dashboard** for review and approval
 6. Patient receives the finalized report only after the doctor signs off
+7. Follow-up submissions are tracked chronologically — doctors monitor condition **progression over time**
 
 ---
 
@@ -88,9 +92,12 @@ Color correction before contrast enhancement; sharpening last to avoid amplifyin
 
 ---
 
-## 💬 Gemini Report Generation
+## 💬 VLM Report Generation
 
-Gemini 2.5 Flash receives:
+The system is built around **Gemini 2.5 Flash** but is designed to work with any multimodal VLM capable of processing images alongside text (e.g. GPT-4o, Claude 3.5 Sonnet). Swapping the VLM only requires updating the API call in `gemini_service.py`.
+
+The VLM receives:
+- The **preprocessed skin image**
 - Vision model's **top-3 predictions** with probabilities
 - **Patient info:** age, gender, medical history, active allergies, skin type
 - **Patient complaint:** reported symptoms
@@ -123,7 +130,7 @@ avicenna/
 │   └── ml-service/                  # FastAPI — classification + Gemini reasoning
 │       ├── app/
 │       │   ├── main.py                  # REST API endpoints
-│       │   └── gemini_service.py        # Gemini 2.5 Flash integration & prompt logic
+│       │   └── gemini_service.py        # VLM integration & clinical prompt logic (Gemini 2.5 Flash)
 │       ├── services/
 │       │   ├── gemini_service.py
 │       │   └── patient_health_report_service.py
