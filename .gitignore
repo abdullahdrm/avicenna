@@ -1,3 +1,69 @@
-.DS_Store
-.vscode/
+# =============================================================
+# AVICENNA — .gitignore
+# =============================================================
+
+# ----- Secrets / Local Environment -----
+.env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
+
+# ----- Credentials & Private Keys -----
+*.pem
+*.key
+*.p12
+*.p8
+credentials.json
+service-account*.json
+*service-account*.json
+
+# ----- Python -----
 __pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.venv/
+venv/
+env/
+.ipynb_checkpoints/
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# ----- Node -----
+node_modules/
+npm-debug.log*
+yarn-error.log*
+.yarn/
+
+# ----- ML Model Checkpoints (large files) -----
+*.pth
+*.pt
+*.ckpt
+*.onnx
+*.h5
+*.pb
+
+# ----- Local Databases -----
+*.db
+*.sqlite
+*.sqlite3
+
+# ----- OS / Editor -----
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+.vscode/
+.idea/
+
+# ----- Build / Cache -----
+dist/
+build/
+coverage/
+.cache/
+*.log
