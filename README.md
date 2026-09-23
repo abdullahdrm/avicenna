@@ -143,7 +143,7 @@ avicenna/
 │       └── .env.example
 ├── ml/
 │   ├── notebooks/                   # All Swin training experiments
-│   │   ├── final_code_avixenna_5_classes.ipynb  # ✅ Final 5-class SwinV2 training — full preprocessing pipeline
+│   │   ├── final_code_avixenna_5_classes.ipynb  #  Final 5-class SwinV2 training — full preprocessing pipeline
 │   │   ├── dermnet_f1_oriented_model_analysis.ipynb # F1-oriented model analysis & ablation
 │   │   ├── kaggle-swin-transformer-v1.ipynb         # SwinV1 baseline experiments
 │   │   ├── kaggle-swin-transformer-v2.ipynb         # SwinV2 experiments
